@@ -158,6 +158,16 @@ html, body { height: 100%; background: var(--bg); color: var(--text-1); font-fam
   align-items: center;
   gap: 7px;
 }
+.logout-btn {
+  margin-left: auto;
+  color: #4a6070;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 5px;
+  transition: color 0.15s, background 0.15s;
+}
+.logout-btn:hover { color: #fff; background: rgba(255,255,255,0.1); }
 
 .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 5px var(--green); flex-shrink: 0; }
 

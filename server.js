@@ -20,8 +20,9 @@ app.use(helmet({
       imgSrc:     ["'self'", "data:", "https://*.tile.openstreetmap.org"],
       connectSrc: ["'self'"],
       fontSrc:    ["'self'"],
-      objectSrc:  ["'none'"],
-      frameAncestors: ["'none'"]
+      objectSrc:      ["'none'"],
+      frameAncestors: ["'none'"],
+      scriptSrcAttr:  ["'unsafe-inline'"]
     }
   },
   crossOriginEmbedderPolicy: false  // required for Leaflet tiles

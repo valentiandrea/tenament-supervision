@@ -49,21 +49,26 @@ router.get('/', async (req, res) => {
 
 // ─── POST /api/changes/recheck — trigger re-check ────────────
 router.post('/recheck', async (req, res) => {
-  const { projectIds } = req.body;  // optional: limit to specific project IDs
+  try {
+    const { projectIds } = req.body;  // optional: limit to specific project IDs
 
-  const session = new CheckSession({
-    name: `Check ${new Date().toLocaleString('en-AU')}`,
-    status: 'running'
-  });
-  await session.save();
+    const session = new CheckSession({
+      name: `Check ${new Date().toLocaleString('en-AU')}`,
+      status: 'running'
+    });
+    await session.save();
 
-  // Return immediately, process in background
-  res.json({ success: true, data: { sessionId: session._id } });
+    // Return immediately, process in background
+    res.json({ success: true, data: { sessionId: session._id } });
 
-  runRecheck(session, projectIds).catch(async err => {
-    console.error('Recheck error:', err);
-    await CheckSession.findByIdAndUpdate(session._id, { status: 'failed', error: err.message });
-  });
+    runRecheck(session, projectIds).catch(async err => {
+      console.error('Recheck error:', err);
+      await CheckSession.findByIdAndUpdate(session._id, { status: 'failed', error: err.message });
+    });
+  } catch (err) {
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message;
+    res.status(500).json({ success: false, error: msg });
+  }
 });
 
 // ─── DELETE /api/changes/sessions/:id ────────────────────────

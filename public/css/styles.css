@@ -477,18 +477,23 @@ tr.expand-row > td { padding: 0; background: #f8faff; border-bottom: 1px solid v
 }
 
 .expand-btn {
-  background: none;
-  border: none;
+  background: var(--gray-light);
+  border: 1px solid var(--border);
   cursor: pointer;
-  color: var(--text-3);
-  padding: 4px;
-  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  padding: 4px 8px;
+  border-radius: 5px;
   display: flex;
   align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
   transition: all var(--transition);
+  white-space: nowrap;
 }
 
-.expand-btn:hover { background: var(--gray-light); color: var(--text-1); }
+.expand-btn:hover { background: var(--border); color: var(--text-1); }
+.expand-btn.open { background: var(--blue); border-color: var(--blue); color: #fff; }
 .expand-btn svg { transition: transform 0.2s; }
 .expand-btn.open svg { transform: rotate(90deg); }
 

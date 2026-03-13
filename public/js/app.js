@@ -292,8 +292,9 @@ const App = (() => {
       </td>
       <td>${clsHTML}</td>
       <td>
-        <button class="expand-btn ${expanded ? 'open' : ''}" onclick="App.toggleExpand('${p._id}')" title="${expanded ? 'Collapse' : 'Show details'}">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        <button class="expand-btn ${expanded ? 'open' : ''}" onclick="App.toggleExpand('${p._id}')" title="${expanded ? 'Collapse' : 'Show details'}" style="display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:5px;border:1px solid var(--border);background:var(--gray-light);color:var(--text-2);font-size:11.5px;font-weight:600;cursor:pointer;white-space:nowrap;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          ${expanded ? 'Close' : 'Details'}
         </button>
       </td>
     </tr>`;

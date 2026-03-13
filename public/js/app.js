@@ -111,25 +111,42 @@ const App = (() => {
       const comEl = document.getElementById('d-commodities');
       if (metaData.success && metaData.data.length > 0) {
         const commodityTotals = {};
+        const containedMetalKeys = ['totalContainedMetal1', 'totalContainedMetal2', 'totalContainedMetal3'];
         for (const m of metaData.data) {
-          const comms = [m.commodity1, m.commodity2, m.commodity3].filter(Boolean);
-          for (const c of comms) {
-            if (!commodityTotals[c]) commodityTotals[c] = { projects: 0, totalInsitu: 0, totalTonnages: 0 };
+          const comms = [m.commodity1, m.commodity2, m.commodity3];
+          comms.forEach((c, i) => {
+            if (!c) return;
+            if (!commodityTotals[c]) commodityTotals[c] = { projects: 0, totalInsitu: 0, totalTonnages: 0, totalContainedMetal: 0 };
             commodityTotals[c].projects++;
-            commodityTotals[c].totalInsitu   += m.totalInsituBillion || 0;
-            commodityTotals[c].totalTonnages += m.totalTonnages || 0;
-          }
+            commodityTotals[c].totalInsitu          += m.totalInsituBillion || 0;
+            commodityTotals[c].totalTonnages        += m.totalTonnages || 0;
+            commodityTotals[c].totalContainedMetal  += m[containedMetalKeys[i]] || 0;
+          });
         }
         const sorted = Object.entries(commodityTotals).sort((a,b) => b[1].projects - a[1].projects);
-        comEl.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:10px;">
-          ${sorted.map(([c, v]) => `
-            <div style="border:1px solid var(--border);border-radius:8px;padding:10px 14px;min-width:140px;">
-              <div style="font-weight:700;font-size:13.5px;color:var(--text-1);">${esc(c)}</div>
-              <div style="font-size:11.5px;color:var(--text-3);margin-top:3px;">${v.projects} project${v.projects!==1?'s':''}</div>
-              <div style="font-size:11.5px;color:var(--text-2);margin-top:2px;">${fmtNum(v.totalInsitu, 3)} B (in-situ)</div>
-              <div style="font-size:11.5px;color:var(--text-2);">${fmtNum(v.totalTonnages/1e6, 2)}M t</div>
-            </div>`).join('')}
-        </div>`;
+        comEl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border);">
+              <th style="text-align:left;padding:6px 10px 6px 0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);">Commodity</th>
+              <th style="text-align:right;padding:6px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);">Projects</th>
+              <th style="text-align:right;padding:6px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);">In-Situ (B)</th>
+              <th style="text-align:right;padding:6px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);">Ore Tonnage</th>
+              <th style="text-align:right;padding:6px 0 6px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);">Contained Metal</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${sorted.map(([c, v]) => `
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 10px 8px 0;font-weight:700;color:var(--text-1);">
+                <span class="comm-badge">${esc(c)}</span>
+              </td>
+              <td style="padding:8px 10px;text-align:right;color:var(--text-2);">${v.projects}</td>
+              <td style="padding:8px 10px;text-align:right;color:var(--text-2);">${fmtNum(v.totalInsitu, 3)}</td>
+              <td style="padding:8px 10px;text-align:right;color:var(--text-2);">${fmtNum(v.totalTonnages/1e6, 2)}M t</td>
+              <td style="padding:8px 0 8px 10px;text-align:right;color:var(--text-2);">${v.totalContainedMetal ? fmtNum(v.totalContainedMetal, 0)+' '+metalUnit(c) : '—'}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>`;
       } else {
         comEl.innerHTML = '<div style="color:var(--text-3);font-size:13px;">No metadata imported yet — <a href="#" onclick="App.navigate(\'upload\')" style="color:var(--blue)">upload ProjectsData.csv</a></div>';
       }
@@ -317,9 +334,9 @@ const App = (() => {
                 <th>Tonnages (t)</th>
                 <th>In-Situ (B)</th>
                 <th>EV (B)</th>
-                ${comms[0]?`<th>${esc(comms[0])} Metal (t)</th>`:''}
-                ${comms[1]?`<th>${esc(comms[1])} Metal (t)</th>`:''}
-                ${comms[2]?`<th>${esc(comms[2])} Metal (t)</th>`:''}
+                ${comms[0]?`<th>${esc(comms[0])} Metal (${metalUnit(comms[0])})</th>`:''}
+                ${comms[1]?`<th>${esc(comms[1])} Metal (${metalUnit(comms[1])})</th>`:''}
+                ${comms[2]?`<th>${esc(comms[2])} Metal (${metalUnit(comms[2])})</th>`:''}
               </tr></thead>
               <tbody>
                 ${subs.map(s => `<tr>
@@ -362,15 +379,15 @@ const App = (() => {
           </div>
           ${comms[0]&&meta.totalContainedMetal1?`<div style="background:var(--gray-light);border-radius:6px;padding:7px 12px;">
             <div style="font-size:10.5px;color:var(--text-3);">${esc(comms[0])} Metal</div>
-            <div style="font-size:14px;font-weight:700;color:var(--text-1);">${fmtNum(meta.totalContainedMetal1,0)} t</div>
+            <div style="font-size:14px;font-weight:700;color:var(--text-1);">${fmtNum(meta.totalContainedMetal1,0)} ${metalUnit(comms[0])}</div>
           </div>`:''}
           ${comms[1]&&meta.totalContainedMetal2?`<div style="background:var(--gray-light);border-radius:6px;padding:7px 12px;">
             <div style="font-size:10.5px;color:var(--text-3);">${esc(comms[1])} Metal</div>
-            <div style="font-size:14px;font-weight:700;color:var(--text-1);">${fmtNum(meta.totalContainedMetal2,0)} t</div>
+            <div style="font-size:14px;font-weight:700;color:var(--text-1);">${fmtNum(meta.totalContainedMetal2,0)} ${metalUnit(comms[1])}</div>
           </div>`:''}
           ${comms[2]&&meta.totalContainedMetal3?`<div style="background:var(--gray-light);border-radius:6px;padding:7px 12px;">
             <div style="font-size:10.5px;color:var(--text-3);">${esc(comms[2])} Metal</div>
-            <div style="font-size:14px;font-weight:700;color:var(--text-1);">${fmtNum(meta.totalContainedMetal3,0)} t</div>
+            <div style="font-size:14px;font-weight:700;color:var(--text-1);">${fmtNum(meta.totalContainedMetal3,0)} ${metalUnit(comms[2])}</div>
           </div>`:''}
         </div>
         ${subTable}
@@ -720,9 +737,9 @@ const App = (() => {
           <div><div style="font-size:10.5px;color:var(--text-3);">In-Situ (B)</div><div style="font-weight:700;font-size:15px;">${meta.totalInsituBillion!=null?meta.totalInsituBillion.toFixed(3):'-'}</div></div>
           <div><div style="font-size:10.5px;color:var(--text-3);">EV (B)</div><div style="font-weight:700;font-size:15px;">${meta.totalEVBillion!=null?meta.totalEVBillion.toFixed(3):'-'}</div></div>
           <div><div style="font-size:10.5px;color:var(--text-3);">Tonnages</div><div style="font-weight:700;font-size:15px;">${meta.totalTonnages!=null?fmtNum(meta.totalTonnages,0)+' t':'-'}</div></div>
-          ${comms[0]&&meta.totalContainedMetal1?`<div><div style="font-size:10.5px;color:var(--text-3);">${esc(comms[0])} (t)</div><div style="font-weight:700;font-size:15px;">${fmtNum(meta.totalContainedMetal1,0)}</div></div>`:''}
-          ${comms[1]&&meta.totalContainedMetal2?`<div><div style="font-size:10.5px;color:var(--text-3);">${esc(comms[1])} (t)</div><div style="font-weight:700;font-size:15px;">${fmtNum(meta.totalContainedMetal2,0)}</div></div>`:''}
-          ${comms[2]&&meta.totalContainedMetal3?`<div><div style="font-size:10.5px;color:var(--text-3);">${esc(comms[2])} (t)</div><div style="font-weight:700;font-size:15px;">${fmtNum(meta.totalContainedMetal3,0)}</div></div>`:''}
+          ${comms[0]&&meta.totalContainedMetal1?`<div><div style="font-size:10.5px;color:var(--text-3);">${esc(comms[0])} (${metalUnit(comms[0])})</div><div style="font-weight:700;font-size:15px;">${fmtNum(meta.totalContainedMetal1,0)}</div></div>`:''}
+          ${comms[1]&&meta.totalContainedMetal2?`<div><div style="font-size:10.5px;color:var(--text-3);">${esc(comms[1])} (${metalUnit(comms[1])})</div><div style="font-weight:700;font-size:15px;">${fmtNum(meta.totalContainedMetal2,0)}</div></div>`:''}
+          ${comms[2]&&meta.totalContainedMetal3?`<div><div style="font-size:10.5px;color:var(--text-3);">${esc(comms[2])} (${metalUnit(comms[2])})</div><div style="font-weight:700;font-size:15px;">${fmtNum(meta.totalContainedMetal3,0)}</div></div>`:''}
           ${meta.mineLife?`<div><div style="font-size:10.5px;color:var(--text-3);">Mine Life</div><div style="font-weight:700;font-size:15px;">${meta.mineLife} yr</div></div>`:''}
           ${meta.cumulativeML?`<div><div style="font-size:10.5px;color:var(--text-3);">Cumulative ML</div><div style="font-weight:700;font-size:15px;">${meta.cumulativeML}</div></div>`:''}
           ${(meta.subdivisions||[]).length?`<div><div style="font-size:10.5px;color:var(--text-3);">Subdivisions</div><div style="font-weight:700;font-size:15px;">${meta.subdivisions.length}</div></div>`:''}
@@ -1381,6 +1398,10 @@ const App = (() => {
     if (n == null || isNaN(n)) return '—';
     return Number(n).toLocaleString('en-AU', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   }
+
+  const PRECIOUS_METALS = new Set(['gold', 'silver', 'platinum', 'palladium', 'rhodium']);
+  function isPrecious(name) { return name && PRECIOUS_METALS.has(name.toLowerCase()); }
+  function metalUnit(name) { return isPrecious(name) ? 'oz' : 't'; }
 
   function fmtDate(d, sentinel=false) {
     if (!d) return '—';

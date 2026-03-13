@@ -4,6 +4,13 @@ const multer = require('multer');
 const path = require('path');
 const ProjectData = require('../../models/ProjectData');
 
+const PRECIOUS_METALS = new Set(['gold', 'silver', 'platinum', 'palladium', 'rhodium']);
+const T_TO_OZ = 32150.7467;  // troy oz per metric ton
+
+function isPrecious(name) {
+  return name && PRECIOUS_METALS.has(name.toLowerCase());
+}
+
 const upload = multer({
   storage: multer.memoryStorage(),
   fileFilter: (req, file, cb) => {
@@ -59,6 +66,10 @@ router.post('/upload', upload.single('csv'), async (req, res) => {
           subdivisions: []
         };
       }
+      const cm1Raw = num(row.ContainedMetalTons1);
+      const cm2Raw = num(row.ContainedMetalTons2);
+      const cm3Raw = num(row.ContainedMetalTons3);
+      const g = grouped[id];
       grouped[id].subdivisions.push({
         subdivisionId: row.ProjectID,
         insituBillion: num(row.InsituBillion),
@@ -67,9 +78,9 @@ router.post('/upload', upload.single('csv'), async (req, res) => {
         grade1: num(row.Grade1),
         grade2: num(row.Grade2),
         grade3: num(row.Grade3),
-        containedMetal1: num(row.ContainedMetalTons1),
-        containedMetal2: num(row.ContainedMetalTons2),
-        containedMetal3: num(row.ContainedMetalTons3),
+        containedMetal1: cm1Raw != null && isPrecious(g.commodity1) ? cm1Raw * T_TO_OZ : cm1Raw,
+        containedMetal2: cm2Raw != null && isPrecious(g.commodity2) ? cm2Raw * T_TO_OZ : cm2Raw,
+        containedMetal3: cm3Raw != null && isPrecious(g.commodity3) ? cm3Raw * T_TO_OZ : cm3Raw,
         strike: num(row.Strike),
         width: num(row.Width),
         ceiling: num(row.Ceiling),
@@ -121,6 +132,36 @@ router.get('/:oreBodyId', async (req, res) => {
     res.json({ success: true, data });
   } catch (err) {
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message; res.status(500).json({ success: false, error: msg });
+  }
+});
+
+// POST /api/metadata/migrate-precious-metals — one-time conversion of existing DB values
+router.post('/migrate-precious-metals', async (req, res) => {
+  try {
+    const docs = await ProjectData.find();
+    let updated = 0;
+    for (const doc of docs) {
+      const comms = [doc.commodity1, doc.commodity2, doc.commodity3];
+      let changed = false;
+
+      // Update subdivision-level values
+      for (const sub of doc.subdivisions) {
+        if (isPrecious(comms[0]) && sub.containedMetal1 != null) { sub.containedMetal1 *= T_TO_OZ; changed = true; }
+        if (isPrecious(comms[1]) && sub.containedMetal2 != null) { sub.containedMetal2 *= T_TO_OZ; changed = true; }
+        if (isPrecious(comms[2]) && sub.containedMetal3 != null) { sub.containedMetal3 *= T_TO_OZ; changed = true; }
+      }
+
+      // Update totals
+      if (isPrecious(comms[0]) && doc.totalContainedMetal1) { doc.totalContainedMetal1 *= T_TO_OZ; changed = true; }
+      if (isPrecious(comms[1]) && doc.totalContainedMetal2) { doc.totalContainedMetal2 *= T_TO_OZ; changed = true; }
+      if (isPrecious(comms[2]) && doc.totalContainedMetal3) { doc.totalContainedMetal3 *= T_TO_OZ; changed = true; }
+
+      if (changed) { await doc.save(); updated++; }
+    }
+    res.json({ success: true, message: `Migrated ${updated} project(s) to oz for precious metals` });
+  } catch (err) {
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message;
+    res.status(500).json({ success: false, error: msg });
   }
 });
 

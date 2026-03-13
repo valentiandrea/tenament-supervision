@@ -65,7 +65,7 @@ const uploadLimiter = rateLimit({
 
 const recheckLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,   // 1 hour
-  max: 5,
+  max: 20,
   message: { success: false, error: 'Re-check limit reached, please wait before retrying.' }
 });
 

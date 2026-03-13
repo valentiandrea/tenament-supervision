@@ -111,6 +111,11 @@ async function runRecheck(session, projectIds) {
     }
 
     projectsChecked++;
+
+    // Update progress every 5 projects so the UI counter advances
+    if (projectsChecked % 5 === 0) {
+      await CheckSession.findByIdAndUpdate(session._id, { projectsChecked });
+    }
   }
 
   // Bulk insert changes

@@ -1266,8 +1266,10 @@ const App = (() => {
 
     try {
       const res  = await fetch('/api/changes/recheck', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error);
+      const text = await res.text();
+      if (!text) throw new Error('No response from server — is the server running?');
+      const data = JSON.parse(text);
+      if (!data.success) throw new Error(data.error || `Server error ${res.status}`);
 
       status.textContent = 'Querying TENGRAPH for all projects...';
       pollRecheck(data.data.sessionId, btn, progress, status);

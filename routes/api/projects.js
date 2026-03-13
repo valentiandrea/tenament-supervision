@@ -26,7 +26,7 @@ router.get('/', async (req, res) => {
 
     const skip = (page - 1) * limit;
     const [projects, total] = await Promise.all([
-      KMLProject.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      KMLProject.find(filter).select('-tenements.apiRawData').sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
       KMLProject.countDocuments(filter)
     ]);
 

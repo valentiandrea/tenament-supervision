@@ -1032,6 +1032,9 @@ const App = (() => {
         return;
       }
       el.innerHTML = data.data.map(b => batchItemHTML(b)).join('');
+      el.querySelectorAll('.delete-batch-btn').forEach(btn => {
+        btn.addEventListener('click', () => deleteBatch(btn.dataset.id, btn.dataset.name));
+      });
     } catch (e) {
       el.innerHTML = `<div style="color:var(--red);font-size:13px;">Error: ${e.message}</div>`;
     }
@@ -1056,7 +1059,7 @@ const App = (() => {
         <div class="batch-stat"><span class="num" style="color:var(--blue)">${b.internalCount||0}</span><span class="lbl">Internal</span></div>
         <div class="batch-stat"><span class="num" style="color:var(--orange)">${b.externalCount||0}</span><span class="lbl">External</span></div>
       </div>
-      <button class="btn btn-danger btn-sm" onclick="App.deleteBatch('${b._id}','${esc(b.name).replace(/'/g,'')}')">Delete</button>
+      <button class="btn btn-danger btn-sm delete-batch-btn" data-id="${b._id}" data-name="${esc(b.name)}">Delete</button>
     </div>`;
   }
 

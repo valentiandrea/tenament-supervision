@@ -168,7 +168,7 @@ router.post('/migrate-precious-metals', async (req, res) => {
 // GET /api/metadata — all, or filtered
 router.get('/', async (req, res) => {
   try {
-    const all = await ProjectData.find().lean();
+    const all = await ProjectData.find().limit(1000).lean();
     res.json({ success: true, data: all });
   } catch (err) {
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message; res.status(500).json({ success: false, error: msg });

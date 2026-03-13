@@ -50,7 +50,11 @@ router.get('/', async (req, res) => {
 // ─── POST /api/changes/recheck — trigger re-check ────────────
 router.post('/recheck', async (req, res) => {
   try {
-    const { projectIds } = req.body;  // optional: limit to specific project IDs
+    const { projectIds } = req.body;
+    if (projectIds !== undefined) {
+      if (!Array.isArray(projectIds)) return res.status(400).json({ success: false, error: 'projectIds must be an array' });
+      if (projectIds.length > 500) return res.status(400).json({ success: false, error: 'projectIds exceeds limit of 500' });
+    }
 
     const session = new CheckSession({
       name: `Check ${new Date().toLocaleString('en-AU')}`,

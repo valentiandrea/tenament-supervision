@@ -3,6 +3,16 @@ const axios = require('axios');
 const TENGRAPH_API_URL = process.env.TENGRAPH_API_URL ||
   'https://services.slip.wa.gov.au/public/rest/services/SLIP_Public_Services/Industry_and_Mining_WFS/MapServer/3/query';
 
+try {
+  const _u = new URL(TENGRAPH_API_URL);
+  if (!_u.hostname.endsWith('slip.wa.gov.au') && !_u.hostname.endsWith('arcgis.com')) {
+    throw new Error(`Unexpected TENGRAPH host: ${_u.hostname}`);
+  }
+} catch (e) {
+  console.error('Invalid TENGRAPH_API_URL:', e.message);
+  process.exit(1);
+}
+
 function formatDate(timestamp) {
   if (!timestamp || timestamp <= 0) return null;
   try {

@@ -58,7 +58,7 @@ router.post('/upload', upload.array('kmlFiles', 200), async (req, res) => {
   if (!files || files.length === 0)
     return res.status(400).json({ success: false, error: 'No KML files uploaded' });
 
-  const batchName = req.body.batchName || `Upload ${new Date().toLocaleString()}`;
+  const batchName = (req.body.batchName || '').trim().slice(0, 200) || `Upload ${new Date().toLocaleString()}`;
   const batch = new Batch({ name: batchName, totalFiles: files.length, status: 'processing' });
   await batch.save();
 

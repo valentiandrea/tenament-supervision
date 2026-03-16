@@ -25,7 +25,8 @@ app.use(helmet({
       scriptSrcAttr:  ["'unsafe-inline'"]
     }
   },
-  crossOriginEmbedderPolicy: false  // required for Leaflet tiles
+  crossOriginEmbedderPolicy: false,  // required for Leaflet tiles
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
 }));
 
 // ── CORS — restrict to own origin in production ───────────────

@@ -8,7 +8,7 @@ const App = (() => {
     view: 'dashboard',
     projects: [],
     pagination: { page: 1, limit: 80, total: 0, pages: 0 },
-    filters: { search: '', classification: '', batchId: '', commodity: '' },
+    filters: { search: '', classification: '', batchId: '', primaryCommodity: '', secondaryCommodity: '' },
     selectedIds: new Set(),
     expandedIds: new Set(),
     currentProject: null,
@@ -22,7 +22,7 @@ const App = (() => {
 
   // ─── Navigation ──────────────────────────────────────────
   function navigate(view) {
-    const titles = { dashboard: 'Dashboard', upload: 'Upload KML', projects: 'Projects', map: 'Map View', batches: 'Batches', changes: 'Change Monitoring' };
+    const titles = { dashboard: 'Dashboard', upload: 'Upload KML', projects: 'Projects', map: 'Map View', batches: 'Batches', changes: 'Change Monitoring', intelligence: 'Expiration' };
 
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -50,6 +50,7 @@ const App = (() => {
     if (view === 'projects') { state.pagination.page = 1; loadMetadata().then(loadProjects); loadBatchFilter(); loadCommodityFilter(); }
     if (view === 'batches') loadBatches();
     if (view === 'changes') loadSessions();
+    if (view === 'intelligence') { intelState.page = 1; loadIntelligence(); }
   }
 
   // ─── Dashboard ───────────────────────────────────────────
@@ -116,34 +117,35 @@ const App = (() => {
           const comms = [m.commodity1, m.commodity2, m.commodity3];
           comms.forEach((c, i) => {
             if (!c) return;
-            if (!commodityTotals[c]) commodityTotals[c] = { projects: 0, totalInsitu: 0, totalTonnages: 0, totalContainedMetal: 0 };
-            commodityTotals[c].projects++;
-            commodityTotals[c].totalInsitu          += m.totalInsituBillion || 0;
-            commodityTotals[c].totalTonnages        += m.totalTonnages || 0;
-            commodityTotals[c].totalContainedMetal  += m[containedMetalKeys[i]] || 0;
+            if (!commodityTotals[c]) commodityTotals[c] = { primary: 0, secondary: 0, totalInsitu: 0, totalTonnages: 0, totalContainedMetal: 0 };
+            if (i === 0) commodityTotals[c].primary++;
+            else         commodityTotals[c].secondary++;
+            commodityTotals[c].totalInsitu         += m.totalInsituBillion || 0;
+            commodityTotals[c].totalTonnages       += m.totalTonnages || 0;
+            commodityTotals[c].totalContainedMetal += m[containedMetalKeys[i]] || 0;
           });
         }
-        const sorted = Object.entries(commodityTotals).sort((a,b) => b[1].projects - a[1].projects);
+        const sorted = Object.entries(commodityTotals).sort((a,b) => b[1].primary - a[1].primary || b[1].secondary - a[1].secondary);
+        const th = (t) => `<th style="text-align:right;padding:6px 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);">${t}</th>`;
         comEl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
           <thead>
             <tr style="border-bottom:1px solid var(--border);">
-              <th style="text-align:left;padding:6px 10px 6px 0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);">Commodity</th>
-              <th style="text-align:right;padding:6px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);">Projects</th>
-              <th style="text-align:right;padding:6px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);">In-Situ (B)</th>
-              <th style="text-align:right;padding:6px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);">Ore Tonnage</th>
-              <th style="text-align:right;padding:6px 0 6px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);">Contained Metal</th>
+              ${th('Commodity')}${th('Primary')}${th('Secondary')}${th('In-Situ (B)')}${th('Ore Tonnage')}${th('Contained Metal')}
             </tr>
           </thead>
           <tbody>
             ${sorted.map(([c, v]) => `
             <tr style="border-bottom:1px solid var(--border);">
-              <td style="padding:8px 10px 8px 0;font-weight:700;color:var(--text-1);">
-                <span class="comm-badge">${esc(c)}</span>
+              <td style="padding:8px 10px 8px 0;font-weight:700;color:var(--text-1);"><span class="comm-badge">${esc(c)}</span></td>
+              <td style="padding:8px 8px;text-align:right;">
+                ${v.primary > 0 ? `<span style="font-weight:700;color:var(--blue);">${v.primary}</span>` : `<span style="color:var(--text-3);">—</span>`}
               </td>
-              <td style="padding:8px 10px;text-align:right;color:var(--text-2);">${v.projects}</td>
-              <td style="padding:8px 10px;text-align:right;color:var(--text-2);">${fmtNum(v.totalInsitu, 3)}</td>
-              <td style="padding:8px 10px;text-align:right;color:var(--text-2);">${fmtNum(v.totalTonnages/1e6, 2)}M t</td>
-              <td style="padding:8px 0 8px 10px;text-align:right;color:var(--text-2);">${v.totalContainedMetal ? fmtNum(v.totalContainedMetal, 0)+' '+metalUnit(c) : '—'}</td>
+              <td style="padding:8px 8px;text-align:right;">
+                ${v.secondary > 0 ? `<span style="color:var(--text-2);">${v.secondary}</span>` : `<span style="color:var(--text-3);">—</span>`}
+              </td>
+              <td style="padding:8px 8px;text-align:right;color:var(--text-2);">${fmtNum(v.totalInsitu, 3)}</td>
+              <td style="padding:8px 8px;text-align:right;color:var(--text-2);">${fmtNum(v.totalTonnages/1e6, 2)}M t</td>
+              <td style="padding:8px 0 8px 8px;text-align:right;color:var(--text-2);">${v.totalContainedMetal ? fmtNum(v.totalContainedMetal, 0)+' '+metalUnit(c) : '—'}</td>
             </tr>`).join('')}
           </tbody>
         </table>`;
@@ -176,10 +178,11 @@ const App = (() => {
     const params = new URLSearchParams({
       page:  state.pagination.page,
       limit: state.pagination.limit,
-      ...(state.filters.search         && { search:         state.filters.search }),
-      ...(state.filters.classification  && { classification:  state.filters.classification }),
-      ...(state.filters.batchId         && { batchId:         state.filters.batchId }),
-      ...(state.filters.commodity       && { commodity:       state.filters.commodity })
+      ...(state.filters.search             && { search:             state.filters.search }),
+      ...(state.filters.classification     && { classification:     state.filters.classification }),
+      ...(state.filters.batchId            && { batchId:            state.filters.batchId }),
+      ...(state.filters.primaryCommodity   && { primaryCommodity:   state.filters.primaryCommodity }),
+      ...(state.filters.secondaryCommodity && { secondaryCommodity: state.filters.secondaryCommodity })
     });
 
     try {
@@ -683,9 +686,10 @@ const App = (() => {
   }
 
   function applyFilters() {
-    state.filters.classification = document.getElementById('filter-cls').value;
-    state.filters.batchId        = document.getElementById('filter-batch').value;
-    state.filters.commodity      = document.getElementById('filter-commodity').value;
+    state.filters.classification     = document.getElementById('filter-cls').value;
+    state.filters.batchId            = document.getElementById('filter-batch').value;
+    state.filters.primaryCommodity   = document.getElementById('filter-primary-commodity').value;
+    state.filters.secondaryCommodity = document.getElementById('filter-secondary-commodity').value;
     state.pagination.page = 1;
     loadProjects();
   }
@@ -707,12 +711,15 @@ const App = (() => {
     try {
       const res  = await fetch('/api/projects/commodities');
       const data = await res.json();
-      if (data.success && data.data.length > 0) {
-        const sel = document.getElementById('filter-commodity');
-        const cur = sel.value;
-        sel.innerHTML = '<option value="">All Commodities</option>' +
-          data.data.map(c => `<option value="${esc(c)}" ${c===cur?'selected':''}>${esc(c)}</option>`).join('');
-      }
+      if (!data.success) return;
+      const { primary = [], secondary = [] } = data.data;
+      const sel1 = document.getElementById('filter-primary-commodity');
+      const sel2 = document.getElementById('filter-secondary-commodity');
+      const cur1 = sel1.value, cur2 = sel2.value;
+      sel1.innerHTML = '<option value="">All Primary Commodities</option>' +
+        primary.map(c => `<option value="${esc(c)}" ${c===cur1?'selected':''}>${esc(c)}</option>`).join('');
+      sel2.innerHTML = '<option value="">All Secondary Commodities</option>' +
+        secondary.map(c => `<option value="${esc(c)}" ${c===cur2?'selected':''}>${esc(c)}</option>`).join('');
     } catch {}
   }
 
@@ -1446,6 +1453,105 @@ const App = (() => {
     return `${(b/1048576).toFixed(1)} MB`;
   }
 
+  // ─── Expiration ───────────────────────────────────────────
+  const intelState = { page: 1, limit: 50 };
+
+  async function loadIntelligence() {
+    const tbody = document.getElementById('intel-tbody');
+    tbody.innerHTML = '<tr><td colspan="6" class="loading-cell"><div style="display:flex;align-items:center;justify-content:center;gap:8px;"><div class="spinner"></div>Loading...</div></td></tr>';
+
+    const params = new URLSearchParams({
+      page:  intelState.page,
+      limit: intelState.limit,
+      ...(document.getElementById('intel-expiry').value && { expiryWithin: document.getElementById('intel-expiry').value }),
+      ...(document.getElementById('intel-status').value && { tenStatus:    document.getElementById('intel-status').value })
+    });
+
+    try {
+      const res  = await fetch(`/api/intelligence?${params}`);
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+
+      document.getElementById('intel-sub').textContent = `${data.pagination.total.toLocaleString()} tenements — sorted by expiry date`;
+      renderIntelligence(data.data);
+      renderIntelPagination(data.pagination);
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--red);font-size:13px;">${esc(e.message)}</td></tr>`;
+    }
+  }
+
+  function renderIntelligence(rows) {
+    const tbody = document.getElementById('intel-tbody');
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--text-3);font-size:13px;">No tenements found</td></tr>';
+      return;
+    }
+
+    const now = Date.now();
+    tbody.innerHTML = rows.map(row => {
+      const t = row.t || {};
+
+      let expiryHtml;
+      if (!t.endDate) {
+        expiryHtml = '<span style="color:var(--text-3);">No date</span>';
+      } else {
+        const ms   = new Date(t.endDate).getTime();
+        const days = Math.ceil((ms - now) / 86400000);
+        if (days < 0) {
+          expiryHtml = `<span class="badge badge-red">Expired ${fmtDate(t.endDate)}</span>`;
+        } else if (days <= 90) {
+          expiryHtml = `<span class="badge badge-red">${fmtDate(t.endDate)} <span style="font-weight:400;">(${days}d)</span></span>`;
+        } else if (days <= 365) {
+          expiryHtml = `<span class="badge badge-yellow">${fmtDate(t.endDate)} <span style="font-weight:400;">(${days}d)</span></span>`;
+        } else {
+          expiryHtml = `<span style="font-size:12px;">${fmtDate(t.endDate, true)}</span>`;
+        }
+      }
+
+      const statusColor = t.tenStatus === 'LIVE' ? 'badge-green' : t.tenStatus === 'PENDING' ? 'badge-yellow' : 'badge-gray';
+      const statusHtml  = t.tenStatus ? `<span class="badge ${statusColor}">${esc(t.tenStatus)}</span>` : '—';
+      const holder      = t.holders && t.holders[0] ? t.holders[0].name : '—';
+      const projectName = row.projectName || row.kmlName || '—';
+      const projectId   = row.projectId;
+
+      return `<tr style="cursor:pointer;" onclick="App.openDetail('${projectId}')" title="Click to view project details">
+        <td>${expiryHtml}</td>
+        <td style="font-family:var(--font-mono);font-size:12px;font-weight:600;">${esc(t.tenementId || '—')}</td>
+        <td style="font-size:12px;">${esc(t.tenType || '—')}</td>
+        <td>${statusHtml}</td>
+        <td style="font-size:12px;color:var(--text-2);">${esc(holder)}</td>
+        <td style="font-size:12px;color:var(--blue);font-weight:500;">${esc(projectName)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function renderIntelPagination(pagination) {
+    const wrap = document.getElementById('intel-pagination');
+    const info = document.getElementById('intel-pag-info');
+    const btns = document.getElementById('intel-pag-btns');
+    if (pagination.pages <= 1) { wrap.style.display = 'none'; return; }
+    wrap.style.display = 'flex';
+    const start = (pagination.page - 1) * pagination.limit + 1;
+    const end   = Math.min(pagination.page * pagination.limit, pagination.total);
+    info.textContent = `${start}–${end} of ${pagination.total}`;
+    const pages = [];
+    for (let p = Math.max(1, pagination.page - 2); p <= Math.min(pagination.pages, pagination.page + 2); p++) pages.push(p);
+    btns.innerHTML =
+      `<button class="btn btn-sm btn-secondary" ${pagination.page===1?'disabled':''} onclick="App.goIntelPage(${pagination.page-1})">‹</button>` +
+      pages.map(p => `<button class="btn btn-sm ${p===pagination.page?'btn-primary':'btn-secondary'}" onclick="App.goIntelPage(${p})">${p}</button>`).join('') +
+      `<button class="btn btn-sm btn-secondary" ${pagination.page===pagination.pages?'disabled':''} onclick="App.goIntelPage(${pagination.page+1})">›</button>`;
+  }
+
+  function applyIntelFilters() {
+    intelState.page = 1;
+    loadIntelligence();
+  }
+
+  function goIntelPage(n) {
+    intelState.page = n;
+    loadIntelligence();
+  }
+
   // ─── Init ─────────────────────────────────────────────────
   function init() {
     document.querySelectorAll('.nav-item[data-view]').forEach(el =>
@@ -1477,6 +1583,7 @@ const App = (() => {
     goPage, viewBatch, deleteBatch,
     loadMapData, fitMapBounds,
     loadSessions, selectSession, filterChanges, startRecheck, deleteSession,
+    applyIntelFilters, goIntelPage,
     showToast, init
   };
 })();

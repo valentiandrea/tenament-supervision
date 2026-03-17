@@ -287,6 +287,12 @@ html, body { height: 100%; background: var(--bg); color: var(--text-1); font-fam
 .badge-external    { background: var(--orange-light); color: var(--orange); border: 1px solid var(--orange-mid); }
 .badge-unclassified { background: var(--gray-light); color: var(--gray); border: 1px solid var(--border-2); }
 
+.badge-red    { background: var(--red-light);    color: var(--red);    border: 1px solid #fecaca; }
+.badge-yellow { background: var(--yellow-light); color: var(--yellow); border: 1px solid var(--yellow-mid); }
+.badge-green  { background: var(--green-light);  color: var(--green);  border: 1px solid var(--green-mid); }
+.badge-orange { background: var(--orange-light); color: var(--orange); border: 1px solid var(--orange-mid); }
+.badge-gray   { background: var(--gray-light);   color: var(--gray);   border: 1px solid var(--border-2); }
+
 /* ─── Filter Bar ─── */
 .filter-bar {
   display: flex;

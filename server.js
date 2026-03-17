@@ -95,6 +95,7 @@ app.use('/api/batches',  require('./routes/api/batches'));
 app.use('/api/projects', require('./routes/api/projects'));
 app.use('/api/changes',  require('./routes/api/changes'));
 app.use('/api/metadata', require('./routes/api/metadata'));
+app.use('/api/intelligence', require('./routes/api/intelligence'));
 
 // ── SPA catch-all ─────────────────────────────────────────────
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));

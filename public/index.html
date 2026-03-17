@@ -51,6 +51,11 @@
         <span class="nav-badge" id="sidebar-changes" style="display:none;background:var(--orange,#ea580c);">!</span>
       </a>
 
+      <a class="nav-item" data-view="intelligence" href="#">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Expiration
+      </a>
+
       <div class="nav-group-label" style="margin-top:8px">Import</div>
       <a class="nav-item" data-view="upload" href="#">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -272,8 +277,11 @@
           <select class="select" id="filter-batch" onchange="App.applyFilters()">
             <option value="">All Batches</option>
           </select>
-          <select class="select" id="filter-commodity" onchange="App.applyFilters()">
-            <option value="">All Commodities</option>
+          <select class="select" id="filter-primary-commodity" onchange="App.applyFilters()">
+            <option value="">All Primary Commodities</option>
+          </select>
+          <select class="select" id="filter-secondary-commodity" onchange="App.applyFilters()">
+            <option value="">All Secondary Commodities</option>
           </select>
         </div>
 
@@ -379,6 +387,53 @@
                 Select a session to view changes
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── EXPIRATION ── -->
+      <div class="view" id="view-intelligence">
+        <div class="section-hdr">
+          <div>
+            <div class="section-title">Expiration</div>
+            <div class="section-sub" id="intel-sub">Tenements sorted by expiry date</div>
+          </div>
+        </div>
+
+        <div class="filter-bar">
+          <select class="select" id="intel-expiry" onchange="App.applyIntelFilters()">
+            <option value="">All Tenements</option>
+            <option value="30">Expiring &lt; 30 days</option>
+            <option value="90">Expiring &lt; 90 days</option>
+            <option value="180">Expiring &lt; 180 days</option>
+            <option value="365">Expiring &lt; 1 year</option>
+          </select>
+          <select class="select" id="intel-status" onchange="App.applyIntelFilters()">
+            <option value="">All Statuses</option>
+            <option value="LIVE">Live</option>
+            <option value="PENDING">Pending</option>
+          </select>
+        </div>
+
+        <div class="projects-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Expiry Date</th>
+                <th>Tenement ID</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Primary Holder</th>
+                <th>Project</th>
+              </tr>
+            </thead>
+            <tbody id="intel-tbody">
+              <tr><td colspan="6" class="loading-cell">Loading...</td></tr>
+            </tbody>
+          </table>
+          <div class="pagination" id="intel-pagination" style="display:none;">
+            <span id="intel-pag-info"></span>
+            <div class="pagination-btns" id="intel-pag-btns"></div>
           </div>
         </div>
       </div>

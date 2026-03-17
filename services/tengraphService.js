@@ -87,6 +87,20 @@ function mapApiDataToTenement(apiData) {
     endDate:      formatDate(apiData.enddate),
     holderCount,
     holders,
+    commodity:      apiData.prim_comm   || null,
+    lodgeDate:      formatDate(apiData.lodgedate),
+    reportDue:      formatDate(apiData.reportdue),
+    pendStatus:     apiData.pendstatus  || null,
+    localGovt:      apiData.localgovt   || null,
+    shire:          apiData.shire       || null,
+    stateRegion:    apiData.stateregion || apiData.region || null,
+    blocks:         parseInt(apiData.blocks)    || null,
+    subBlocks:      parseInt(apiData.subblocks) || null,
+    natRes:         apiData.natres      || null,
+    nativeTitle:    apiData.nativetitle || null,
+    mortgagee:      apiData.mortgagee   || null,
+    purposeAppl:    apiData.purpappl    || null,
+    miningActivity: apiData.minact      || null,
     apiRawData: apiData
   };
 }

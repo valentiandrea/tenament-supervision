@@ -1,5 +1,6 @@
 const express = require('express');
 const router  = express.Router();
+const mongoose = require('mongoose');
 const CheckSession = require('../../models/CheckSession');
 const ChangeLog    = require('../../models/ChangeLog');
 const KMLProject   = require('../../models/KMLProject');
@@ -33,10 +34,19 @@ router.get('/', async (req, res) => {
   try {
     const { sessionId, changeType, projectId } = req.query;
     const limit = Math.min(500, Math.max(1, parseInt(req.query.limit) || 200));
+
+    const VALID_CHANGE_TYPES = ['status_change','new_tenement','tenement_removed','holder_change','license_change','area_change','end_date_change'];
+    if (sessionId && !mongoose.Types.ObjectId.isValid(sessionId))
+      return res.status(400).json({ success: false, error: 'Invalid sessionId' });
+    if (projectId && !mongoose.Types.ObjectId.isValid(projectId))
+      return res.status(400).json({ success: false, error: 'Invalid projectId' });
+    if (changeType && !VALID_CHANGE_TYPES.includes(changeType))
+      return res.status(400).json({ success: false, error: 'Invalid changeType' });
+
     const filter = {};
-    if (sessionId)  filter.sessionId  = sessionId;
+    if (sessionId)  filter.sessionId  = new mongoose.Types.ObjectId(sessionId);
     if (changeType) filter.changeType = changeType;
-    if (projectId)  filter.projectId  = projectId;
+    if (projectId)  filter.projectId  = new mongoose.Types.ObjectId(projectId);
 
     const changes = await ChangeLog.find(filter)
       .sort({ detectedAt: -1 })
@@ -55,6 +65,8 @@ router.post('/recheck', async (req, res) => {
       if (!Array.isArray(projectIds)) return res.status(400).json({ success: false, error: 'projectIds must be an array' });
       if (projectIds.length > 500) return res.status(400).json({ success: false, error: 'projectIds exceeds limit of 500' });
     }
+    if (projectIds && projectIds.some(id => !mongoose.Types.ObjectId.isValid(id)))
+      return res.status(400).json({ success: false, error: 'projectIds contains invalid IDs' });
 
     const session = new CheckSession({
       name: `Check ${new Date().toLocaleString('en-AU')}`,

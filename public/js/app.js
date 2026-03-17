@@ -817,7 +817,7 @@ const App = (() => {
       </div>
       ${holderSet.size > 0 ? `<div style="margin-top:12px;font-size:12px;color:var(--text-2);">
         <span style="font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);">Holders — </span>
-        ${[...holderSet].join(', ')}
+        ${[...holderSet].map(h => esc(h)).join(', ')}
       </div>` : ''}
       ${tenTable}
     `;
@@ -1393,7 +1393,7 @@ const App = (() => {
         return [p.kmlName, p.sourceFile, p.matchedCount||0, live, pending, p.classification, p.classificationNote||'', ids];
       });
 
-      const csv = [headers,...rows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+      const csv = [headers,...rows].map(r=>r.map(v=>{ let s = String(v); if (/^[=+\-@]/.test(s)) s = '\t' + s; return `"${s.replace(/"/g,'""')}"`; }).join(',')).join('\n');
       const a = Object.assign(document.createElement('a'), {
         href: URL.createObjectURL(new Blob([csv],{type:'text/csv'})),
         download: `kml_projects_${new Date().toISOString().split('T')[0]}.csv`

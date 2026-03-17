@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const KMLProject = require('../../models/KMLProject');
 const Batch = require('../../models/Batch');
 const ProjectData = require('../../models/ProjectData');
@@ -12,7 +13,11 @@ router.get('/', async (req, res) => {
     const limit = Math.min(500, Math.max(1, parseInt(req.query.limit) || 100));
 
     const filter = {};
-    if (batchId) filter.batchId = batchId;
+    if (batchId) {
+      if (!mongoose.Types.ObjectId.isValid(batchId))
+        return res.status(400).json({ success: false, error: 'Invalid batchId' });
+      filter.batchId = batchId;
+    }
     if (classification && ['internal','external','unclassified'].includes(classification))
       filter.classification = classification;
     if (primaryCommodity || secondaryCommodity) {
@@ -107,7 +112,7 @@ router.get('/commodities', async (req, res) => {
 // GET /api/projects/:id
 router.get('/:id', async (req, res) => {
   try {
-    const project = await KMLProject.findById(req.params.id).lean();
+    const project = await KMLProject.findById(req.params.id).select('-tenements.apiRawData').lean();
     if (!project) return res.status(404).json({ success: false, error: 'Project not found' });
     res.json({ success: true, data: project });
   } catch (err) {
@@ -144,6 +149,8 @@ router.patch('/bulk/classification', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid classification' });
     if (note && typeof note !== 'string')
       return res.status(400).json({ success: false, error: 'Note must be a string' });
+    if (note && note.length > 500)
+      return res.status(400).json({ success: false, error: 'Note must be under 500 characters' });
 
     await KMLProject.updateMany(
       { _id: { $in: ids } },
@@ -161,6 +168,8 @@ router.patch('/:id/classification', async (req, res) => {
     const { classification, note } = req.body;
     if (!['internal', 'external', 'unclassified'].includes(classification))
       return res.status(400).json({ success: false, error: 'Invalid classification' });
+    if (note && note.length > 500)
+      return res.status(400).json({ success: false, error: 'Note must be under 500 characters' });
 
     const project = await KMLProject.findByIdAndUpdate(
       req.params.id,

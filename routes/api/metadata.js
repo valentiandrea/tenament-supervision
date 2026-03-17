@@ -135,36 +135,6 @@ router.get('/:oreBodyId', async (req, res) => {
   }
 });
 
-// POST /api/metadata/migrate-precious-metals — one-time conversion of existing DB values
-router.post('/migrate-precious-metals', async (req, res) => {
-  try {
-    const docs = await ProjectData.find();
-    let updated = 0;
-    for (const doc of docs) {
-      const comms = [doc.commodity1, doc.commodity2, doc.commodity3];
-      let changed = false;
-
-      // Update subdivision-level values
-      for (const sub of doc.subdivisions) {
-        if (isPrecious(comms[0]) && sub.containedMetal1 != null) { sub.containedMetal1 *= T_TO_OZ; changed = true; }
-        if (isPrecious(comms[1]) && sub.containedMetal2 != null) { sub.containedMetal2 *= T_TO_OZ; changed = true; }
-        if (isPrecious(comms[2]) && sub.containedMetal3 != null) { sub.containedMetal3 *= T_TO_OZ; changed = true; }
-      }
-
-      // Update totals
-      if (isPrecious(comms[0]) && doc.totalContainedMetal1) { doc.totalContainedMetal1 *= T_TO_OZ; changed = true; }
-      if (isPrecious(comms[1]) && doc.totalContainedMetal2) { doc.totalContainedMetal2 *= T_TO_OZ; changed = true; }
-      if (isPrecious(comms[2]) && doc.totalContainedMetal3) { doc.totalContainedMetal3 *= T_TO_OZ; changed = true; }
-
-      if (changed) { await doc.save(); updated++; }
-    }
-    res.json({ success: true, message: `Migrated ${updated} project(s) to oz for precious metals` });
-  } catch (err) {
-    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message;
-    res.status(500).json({ success: false, error: msg });
-  }
-});
-
 // GET /api/metadata — all, or filtered
 router.get('/', async (req, res) => {
   try {

@@ -8,7 +8,7 @@ const App = (() => {
     view: 'dashboard',
     projects: [],
     pagination: { page: 1, limit: 80, total: 0, pages: 0 },
-    filters: { search: '', classification: '', batchId: '' },
+    filters: { search: '', classification: '', batchId: '', commodity: '' },
     selectedIds: new Set(),
     expandedIds: new Set(),
     currentProject: null,
@@ -47,7 +47,7 @@ const App = (() => {
     }
 
     if (view === 'dashboard') loadDashboard();
-    if (view === 'projects') { state.pagination.page = 1; loadMetadata().then(loadProjects); loadBatchFilter(); }
+    if (view === 'projects') { state.pagination.page = 1; loadMetadata().then(loadProjects); loadBatchFilter(); loadCommodityFilter(); }
     if (view === 'batches') loadBatches();
     if (view === 'changes') loadSessions();
   }
@@ -178,7 +178,8 @@ const App = (() => {
       limit: state.pagination.limit,
       ...(state.filters.search         && { search:         state.filters.search }),
       ...(state.filters.classification  && { classification:  state.filters.classification }),
-      ...(state.filters.batchId         && { batchId:         state.filters.batchId })
+      ...(state.filters.batchId         && { batchId:         state.filters.batchId }),
+      ...(state.filters.commodity       && { commodity:       state.filters.commodity })
     });
 
     try {
@@ -684,6 +685,7 @@ const App = (() => {
   function applyFilters() {
     state.filters.classification = document.getElementById('filter-cls').value;
     state.filters.batchId        = document.getElementById('filter-batch').value;
+    state.filters.commodity      = document.getElementById('filter-commodity').value;
     state.pagination.page = 1;
     loadProjects();
   }
@@ -697,6 +699,19 @@ const App = (() => {
         const cur = sel.value;
         sel.innerHTML = '<option value="">All Batches</option>' +
           data.data.map(b => `<option value="${b._id}" ${b._id===cur?'selected':''}>${esc(b.name)}</option>`).join('');
+      }
+    } catch {}
+  }
+
+  async function loadCommodityFilter() {
+    try {
+      const res  = await fetch('/api/projects/commodities');
+      const data = await res.json();
+      if (data.success && data.data.length > 0) {
+        const sel = document.getElementById('filter-commodity');
+        const cur = sel.value;
+        sel.innerHTML = '<option value="">All Commodities</option>' +
+          data.data.map(c => `<option value="${esc(c)}" ${c===cur?'selected':''}>${esc(c)}</option>`).join('');
       }
     } catch {}
   }

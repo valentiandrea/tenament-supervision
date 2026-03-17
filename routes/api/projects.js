@@ -2,11 +2,12 @@ const express = require('express');
 const router = express.Router();
 const KMLProject = require('../../models/KMLProject');
 const Batch = require('../../models/Batch');
+const ProjectData = require('../../models/ProjectData');
 
 // GET /api/projects — list KML projects with filters
 router.get('/', async (req, res) => {
   try {
-    const { batchId, classification, search } = req.query;
+    const { batchId, classification, commodity, search } = req.query;
     const page  = Math.max(1, parseInt(req.query.page)  || 1);
     const limit = Math.min(500, Math.max(1, parseInt(req.query.limit) || 100));
 
@@ -14,6 +15,12 @@ router.get('/', async (req, res) => {
     if (batchId) filter.batchId = batchId;
     if (classification && ['internal','external','unclassified'].includes(classification))
       filter.classification = classification;
+    if (commodity) {
+      const matches = await ProjectData.find({
+        $or: [{ commodity1: commodity }, { commodity2: commodity }, { commodity3: commodity }]
+      }).select('oreBodyId').lean();
+      filter.kmlName = { $in: matches.map(m => m.oreBodyId) };
+    }
     if (search) {
       const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').slice(0, 200);
       filter.$or = [
@@ -71,6 +78,26 @@ router.get('/stats', async (req, res) => {
     });
   } catch (err) {
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message; res.status(500).json({ success: false, error: msg });
+  }
+});
+
+// GET /api/projects/commodities — distinct commodities from metadata for filter dropdown
+router.get('/commodities', async (req, res) => {
+  try {
+    const commodities = await ProjectData.aggregate([
+      { $project: { vals: { $setUnion: [
+        { $cond: [{ $gt: ['$commodity1', ''] }, ['$commodity1'], []] },
+        { $cond: [{ $gt: ['$commodity2', ''] }, ['$commodity2'], []] },
+        { $cond: [{ $gt: ['$commodity3', ''] }, ['$commodity3'], []] }
+      ]}}},
+      { $unwind: '$vals' },
+      { $group:  { _id: '$vals' } },
+      { $sort:   { _id: 1 } }
+    ]);
+    res.json({ success: true, data: commodities.map(c => c._id) });
+  } catch (err) {
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message;
+    res.status(500).json({ success: false, error: msg });
   }
 });
 

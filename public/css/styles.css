@@ -753,4 +753,11 @@ hr.divider { grid-column: 1/-1; border: none; border-top: 1px solid var(--border
 /* ─── Loading ─── */
 .loading-cell { text-align: center; padding: 40px; color: var(--text-3); }
 
+/* ─── Price Intelligence ─── */
+#price-range-btns .btn.active {
+  background: var(--blue);
+  color: #fff;
+  border-color: var(--blue);
+}
+
 @media (max-width: 860px) { .sidebar { display: none; } .detail-grid { grid-template-columns: 1fr; } .grid-2 { grid-template-columns: 1fr; } }

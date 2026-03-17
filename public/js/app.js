@@ -22,7 +22,7 @@ const App = (() => {
 
   // ─── Navigation ──────────────────────────────────────────
   function navigate(view) {
-    const titles = { dashboard: 'Dashboard', upload: 'Upload KML', projects: 'Projects', map: 'Map View', batches: 'Batches', changes: 'Change Monitoring', intelligence: 'Expiration' };
+    const titles = { dashboard: 'Dashboard', upload: 'Upload KML', projects: 'Projects', map: 'Map View', batches: 'Batches', changes: 'Change Monitoring', intelligence: 'Expiration', prices: 'Price Intelligence' };
 
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -51,6 +51,7 @@ const App = (() => {
     if (view === 'batches') loadBatches();
     if (view === 'changes') loadSessions();
     if (view === 'intelligence') { intelState.page = 1; loadIntelligence(); }
+    if (view === 'prices') loadPriceSymbols();
   }
 
   // ─── Dashboard ───────────────────────────────────────────
@@ -1551,6 +1552,220 @@ const App = (() => {
     loadIntelligence();
   }
 
+  // ─── Price Intelligence ────────────────────────────────────
+  // priceState.data holds the full 10-year fetch; range buttons only re-render
+  // the chart viewport without refetching, so the forecast never changes.
+  const priceState = { symbol: null, viewDays: 365, data: null, chart: null };
+
+  async function loadPriceSymbols() {
+    try {
+      const res  = await fetch('/api/prices');
+      const data = await res.json();
+      if (!data.success) return;
+
+      const sel = document.getElementById('price-symbol');
+      const sorted = (data.data || []).sort((a, b) => (a.name || a.symbol).localeCompare(b.name || b.symbol));
+      sel.innerHTML = '<option value="">Select a commodity...</option>' +
+        sorted.map(d =>
+          `<option value="${esc(d.symbol)}">${esc(d.name || d.symbol)} (${esc(d.symbol)})</option>`
+        ).join('');
+    } catch (e) { /* non-fatal */ }
+  }
+
+  // Range change: only re-render the chart viewport — no API call, forecast unchanged.
+  function setPriceRange(days, btn) {
+    priceState.viewDays = days;
+    document.querySelectorAll('#price-range-btns .btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    if (priceState.data) _renderPriceChart(priceState.data, priceState.viewDays);
+  }
+
+  // Always fetch full 10-year history so the forecast model always uses all data.
+  async function loadPriceData() {
+    const symbol = document.getElementById('price-symbol').value;
+    if (!symbol) return;
+    priceState.symbol = symbol;
+    priceState.data   = null;
+
+    document.getElementById('price-empty').style.display   = 'none';
+    document.getElementById('price-data').style.display    = 'none';
+    document.getElementById('price-error').style.display   = 'none';
+    document.getElementById('price-loading').style.display = 'block';
+
+    try {
+      const res  = await fetch(`/api/prices/${encodeURIComponent(symbol)}?days=3650&forecast=365`);
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+
+      priceState.data = data.data;
+      document.getElementById('price-loading').style.display = 'none';
+      document.getElementById('price-data').style.display    = 'block';
+
+      _renderPriceKpis(data.data);
+      _renderPriceChart(data.data, priceState.viewDays);
+      _renderForecastTable(data.data);
+    } catch (e) {
+      document.getElementById('price-loading').style.display = 'none';
+      document.getElementById('price-error').style.display   = 'block';
+      document.getElementById('price-error').textContent     = `Error: ${esc(e.message)}`;
+    }
+  }
+
+  function _renderPriceKpis(d) {
+    const { stats, name, unit, currency, model } = d;
+
+    document.getElementById('ps-current').textContent = _fmtPrice(stats.latest, unit, currency);
+    document.getElementById('ps-unit').textContent    = `${currency} / ${unit}`;
+    document.getElementById('ps-unit2').textContent   = `${currency} / ${unit}`;
+    document.getElementById('ps-unit3').textContent   = `${currency} / ${unit}`;
+    document.getElementById('ps-low').textContent     = _fmtPrice(stats.min52w, unit, currency);
+    document.getElementById('ps-high').textContent    = _fmtPrice(stats.max52w, unit, currency);
+
+    document.getElementById('price-chart-title').textContent =
+      `${name} (${d.symbol}) — History & Forecast`;
+    document.getElementById('price-sub').textContent =
+      `${(d.timeseries||[]).length} data points · ${currency} / ${unit}`;
+
+    if (model) {
+      document.getElementById('price-model-info').textContent =
+        `RMSE ${_fmtPrice(model.rmse, unit, currency)}`;
+    }
+
+    function _pct(id, val) {
+      const el = document.getElementById(id);
+      if (val == null) { el.textContent = '—'; el.style.color = 'var(--text-3)'; return; }
+      const up = val >= 0;
+      el.textContent = `${up ? '+' : ''}${val.toFixed(2)}%`;
+      el.style.color = up ? 'var(--green)' : 'var(--red)';
+    }
+    _pct('ps-30d', stats.change30d);
+    _pct('ps-90d', stats.change90d);
+    _pct('ps-1y',  stats.change365d);
+  }
+
+  // viewDays controls the historical window shown; forecast is always appended in full.
+  function _renderPriceChart(d, viewDays) {
+    if (priceState.chart) { priceState.chart.destroy(); priceState.chart = null; }
+
+    const ctx = document.getElementById('price-chart').getContext('2d');
+
+    // Slice history to the viewport window (client-side, no refetch)
+    const cutoff      = new Date(Date.now() - viewDays * 86400000);
+    const visible     = d.timeseries.filter(p => new Date(p.date) >= cutoff);
+
+    const histLabels  = visible.map(p => p.date.slice(0, 10));
+    const histPrices  = visible.map(p => p.close);
+    const fcstLabels  = d.forecast.map(p => p.date.slice(0, 10));
+    const fcstVals    = d.forecast.map(p => p.value);
+    const histLen     = histLabels.length;
+
+    const allLabels   = [...histLabels, ...fcstLabels];
+    const histData    = [...histPrices, ...new Array(fcstLabels.length).fill(null)];
+    // Connect the forecast line to the last visible historical point
+    const fcstData    = [...new Array(histLen - 1).fill(null), histPrices[histLen - 1], ...fcstVals];
+
+    priceState.chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels:   allLabels,
+        datasets: [
+          {
+            label:       'Price',
+            data:        histData,
+            borderColor: '#3F7ADC',
+            borderWidth: 1.5,
+            pointRadius: 0,
+            tension:     0,
+            fill:        false,
+            spanGaps:    false
+          },
+          {
+            label:       'Forecast',
+            data:        fcstData,
+            borderColor: '#ea580c',
+            borderDash:  [5, 4],
+            borderWidth: 1.5,
+            pointRadius: 0,
+            tension:     0,
+            fill:        false,
+            spanGaps:    false
+          }
+        ]
+      },
+      options: {
+        responsive:          true,
+        maintainAspectRatio: false,
+        interaction:         { mode: 'index', intersect: false },
+        plugins: {
+          legend: {
+            display: true,
+            labels:  { boxWidth: 12, font: { size: 11 } }
+          },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                if (ctx.raw == null) return null;
+                return ` ${ctx.dataset.label}: ${_fmtPrice(ctx.raw, d.unit, d.currency)}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { maxTicksLimit: 12, font: { size: 10 }, color: '#6b7280' },
+            grid:  { color: 'rgba(0,0,0,0.04)' }
+          },
+          y: {
+            ticks: {
+              font:     { size: 10 },
+              color:    '#6b7280',
+              callback: v => _fmtPrice(v, d.unit, d.currency)
+            },
+            grid: { color: 'rgba(0,0,0,0.06)' }
+          }
+        }
+      }
+    });
+  }
+
+  function _renderForecastTable(d) {
+    const horizons = [7, 14, 30, 60, 90, 120, 180];
+    const current  = d.stats.latest;
+
+    const rows = horizons.map(h => {
+      const pt = d.forecast[h - 1];
+      if (!pt) return '';
+      const chg   = ((pt.value - current) / current) * 100;
+      const color = chg >= 0 ? 'var(--green)' : 'var(--red)';
+      const arrow = chg >= 0 ? '↑' : '↓';
+      return `<tr>
+        <td style="font-weight:600;font-size:13px;">${h}d</td>
+        <td style="font-size:12px;color:var(--text-2);">${pt.date.slice(0,10)}</td>
+        <td style="font-weight:600;">${_fmtPrice(pt.value, d.unit, d.currency)}</td>
+        <td style="color:${color};font-weight:600;">${arrow} ${Math.abs(chg).toFixed(2)}%</td>
+        <td style="font-size:11.5px;color:var(--text-3);">${_fmtPrice(pt.lower, d.unit, d.currency)} – ${_fmtPrice(pt.upper, d.unit, d.currency)}</td>
+      </tr>`;
+    }).join('');
+
+    document.getElementById('price-forecast-table').innerHTML = `
+      <table>
+        <thead><tr>
+          <th>Horizon</th><th>Target Date</th>
+          <th>Forecast Price</th><th>vs Current</th><th>95% CI Range</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+
+  function _fmtPrice(v, unit, currency) {
+    if (v == null || isNaN(v)) return '—';
+    const sym = (currency === 'CNY') ? '¥' : '$';
+    if (v >= 10000)  return `${sym}${Math.round(v).toLocaleString()}`;
+    if (v >= 100)    return `${sym}${v.toFixed(2)}`;
+    if (v >= 1)      return `${sym}${v.toFixed(3)}`;
+    return `${sym}${v.toFixed(4)}`;
+  }
+
   // ─── Init ─────────────────────────────────────────────────
   function init() {
     document.querySelectorAll('.nav-item[data-view]').forEach(el =>
@@ -1583,6 +1798,7 @@ const App = (() => {
     loadMapData, fitMapBounds,
     loadSessions, selectSession, filterChanges, startRecheck, deleteSession,
     applyIntelFilters, goIntelPage,
+    loadPriceSymbols, loadPriceData, setPriceRange,
     showToast, init
   };
 })();

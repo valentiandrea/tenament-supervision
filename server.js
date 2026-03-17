@@ -16,8 +16,8 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc:  ["'self'", "https://unpkg.com"],
-      styleSrc:   ["'self'", "'unsafe-inline'", "https://unpkg.com"],
+      scriptSrc:  ["'self'", "https://unpkg.com", "https://cdn.jsdelivr.net"],
+      styleSrc:   ["'self'", "'unsafe-inline'", "https://unpkg.com", "https://cdn.jsdelivr.net"],
       imgSrc:     ["'self'", "data:", "https://*.tile.openstreetmap.org"],
       connectSrc: ["'self'"],
       fontSrc:    ["'self'"],
@@ -97,6 +97,7 @@ app.use('/api/projects', require('./routes/api/projects'));
 app.use('/api/changes',  require('./routes/api/changes'));
 app.use('/api/metadata', require('./routes/api/metadata'));
 app.use('/api/intelligence', require('./routes/api/intelligence'));
+app.use('/api/prices',      require('./routes/api/prices'));
 
 // ── SPA catch-all ─────────────────────────────────────────────
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));

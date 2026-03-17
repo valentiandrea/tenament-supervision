@@ -53,6 +53,10 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         Expiration
       </a>
+      <a class="nav-item" data-view="prices" href="#">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+        Price Intelligence
+      </a>
 
       <div class="nav-group-label" style="margin-top:8px">Import</div>
       <a class="nav-item" data-view="upload" href="#">
@@ -437,6 +441,99 @@
         </div>
       </div>
 
+      <!-- ── PRICE INTELLIGENCE ── -->
+      <div class="view" id="view-prices">
+        <div class="section-hdr">
+          <div>
+            <div class="section-title">Price Intelligence</div>
+            <div class="section-sub" id="price-sub">Commodity price trends &amp; forecasts · USD</div>
+          </div>
+        </div>
+
+        <div class="filter-bar" style="margin-bottom:16px;">
+          <select class="select" id="price-symbol" onchange="App.loadPriceData()" style="min-width:220px;">
+            <option value="">Select a commodity...</option>
+          </select>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;" id="price-range-btns">
+            <button class="btn btn-sm btn-secondary" data-days="90"   onclick="App.setPriceRange(90,  this)">3M</button>
+            <button class="btn btn-sm btn-secondary" data-days="180"  onclick="App.setPriceRange(180, this)">6M</button>
+            <button class="btn btn-sm btn-secondary active" data-days="365"  onclick="App.setPriceRange(365, this)">1Y</button>
+            <button class="btn btn-sm btn-secondary" data-days="730"  onclick="App.setPriceRange(730, this)">2Y</button>
+            <button class="btn btn-sm btn-secondary" data-days="1825" onclick="App.setPriceRange(1825,this)">5Y</button>
+            <button class="btn btn-sm btn-secondary" data-days="3650" onclick="App.setPriceRange(3650,this)">10Y</button>
+          </div>
+        </div>
+
+        <!-- empty / loading / error states -->
+        <div id="price-empty" style="display:flex;align-items:center;justify-content:center;padding:80px 0;color:var(--text-3);font-size:14px;">
+          Select a commodity above to view price intelligence
+        </div>
+        <div id="price-loading" style="display:none;padding:80px 0;text-align:center;">
+          <div class="spinner" style="margin:0 auto 12px;width:28px;height:28px;"></div>
+          <div style="font-size:13px;color:var(--text-3);">Loading price data...</div>
+        </div>
+        <div id="price-error" style="display:none;padding:40px 0;text-align:center;color:var(--red);font-size:13px;"></div>
+
+        <!-- populated section -->
+        <div id="price-data" style="display:none;">
+          <!-- KPI row -->
+          <div class="stats-grid" style="grid-template-columns:repeat(6,1fr);margin-bottom:16px;" id="price-kpis">
+            <div class="stat-card">
+              <div class="stat-label">Current Price</div>
+              <div class="stat-value" id="ps-current" style="font-size:20px;">—</div>
+              <div class="stat-sub" id="ps-unit">USD</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">30d Change</div>
+              <div class="stat-value" id="ps-30d" style="font-size:20px;">—</div>
+              <div class="stat-sub">vs 30 days ago</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">90d Change</div>
+              <div class="stat-value" id="ps-90d" style="font-size:20px;">—</div>
+              <div class="stat-sub">vs 90 days ago</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">1Y Change</div>
+              <div class="stat-value" id="ps-1y" style="font-size:20px;">—</div>
+              <div class="stat-sub">vs 1 year ago</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Period Low</div>
+              <div class="stat-value" id="ps-low" style="font-size:20px;">—</div>
+              <div class="stat-sub" id="ps-unit2">USD</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Period High</div>
+              <div class="stat-value" id="ps-high" style="font-size:20px;">—</div>
+              <div class="stat-sub" id="ps-unit3">USD</div>
+            </div>
+          </div>
+
+          <!-- Chart card -->
+          <div class="card mb-4">
+            <div class="card-header">
+              <div class="card-title" id="price-chart-title">Price Chart</div>
+              <div style="font-size:11.5px;color:var(--text-3);" id="price-model-info"></div>
+            </div>
+            <div class="card-body" style="padding:16px 20px 12px;">
+              <div style="position:relative;height:360px;">
+                <canvas id="price-chart"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Forecast table -->
+          <div class="card mb-4">
+            <div class="card-header">
+              <div class="card-title">Price Forecast</div>
+              <span style="font-size:12px;color:var(--text-3);">Holt's Linear Trend · 95% confidence interval</span>
+            </div>
+            <div id="price-forecast-table" style="overflow:hidden;border-radius:0 0 8px 8px;"></div>
+          </div>
+        </div>
+      </div><!-- /view-prices -->
+
     </div><!-- /content -->
 
     <!-- MAP (outside scrollable content) -->
@@ -521,6 +618,7 @@
 
 <div id="toast-container"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script src="/js/app.js"></script>
 </body>
 </html>

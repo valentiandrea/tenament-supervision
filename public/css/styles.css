@@ -7,17 +7,23 @@
   --surface:    #ffffff;
   --surface-2:  #f8f9fb;
 
-  --sidebar-bg: #1b2a3b;
-  --sidebar-border: rgba(255,255,255,0.07);
-  --sidebar-text: #8faabe;
-  --sidebar-hover: rgba(255,255,255,0.07);
-  --sidebar-active-bg: rgba(255,255,255,0.12);
+  /* EDE logo palette */
+  --ede-navy:   #072972;
+  --ede-blue:   #144AA5;
+  --ede-mid:    #3F7ADC;
+  --ede-light:  #629FF9;
+
+  --sidebar-bg: #072972;
+  --sidebar-border: rgba(255,255,255,0.08);
+  --sidebar-text: #8fafd6;
+  --sidebar-hover: rgba(98,159,249,0.12);
+  --sidebar-active-bg: rgba(98,159,249,0.18);
   --sidebar-active-text: #ffffff;
 
-  --blue:        #2563eb;
-  --blue-hover:  #1d4ed8;
-  --blue-light:  #eff6ff;
-  --blue-mid:    #bfdbfe;
+  --blue:        #3F7ADC;
+  --blue-hover:  #144AA5;
+  --blue-light:  #edf3fd;
+  --blue-mid:    #b8d0f5;
 
   --green:       #16a34a;
   --green-light: #f0fdf4;
@@ -153,14 +159,14 @@ html, body { height: 100%; background: var(--bg); color: var(--text-1); font-fam
   padding: 12px 14px;
   border-top: 1px solid var(--sidebar-border);
   font-size: 11px;
-  color: #4a6070;
+  color: var(--sidebar-text);
   display: flex;
   align-items: center;
   gap: 7px;
 }
 .logout-btn {
   margin-left: auto;
-  color: #4a6070;
+  color: var(--sidebar-text);
   display: flex;
   align-items: center;
   padding: 4px;

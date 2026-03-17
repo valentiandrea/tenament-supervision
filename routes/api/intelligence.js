@@ -13,6 +13,15 @@ const BACKFILL_STAGE = { $addFields: {
   'tenements.miningActivity': { $ifNull: ['$tenements.miningActivity', '$tenements.apiRawData.minact'] },
   'tenements.purposeAppl':    { $ifNull: ['$tenements.purposeAppl',    '$tenements.apiRawData.purpappl'] },
   'tenements.pendStatus':     { $ifNull: ['$tenements.pendStatus',     '$tenements.apiRawData.pendstatus'] },
+  // Backfill endDate from raw Unix-ms timestamp for records stored before schema migration
+  'tenements.endDate': { $ifNull: [
+    '$tenements.endDate',
+    { $cond: {
+      if:   { $and: [{ $gt: ['$tenements.apiRawData.enddate', 0] }, { $ne: ['$tenements.apiRawData.enddate', null] }] },
+      then: { $toDate: '$tenements.apiRawData.enddate' },
+      else: null
+    }}
+  ]},
 }};
 
 // GET /api/intelligence/filters — distinct values for all dropdowns
@@ -56,7 +65,9 @@ router.get('/', async (req, res) => {
     if (natRes)      match['tenements.natRes']      = natRes;
     if (hasMortgagee === 'yes') match['tenements.mortgagee'] = { $nin: [null, ''] };
     if (hasMortgagee === 'no')  match['tenements.mortgagee'] = { $in:  [null, ''] };
-    if (expiryWithin) {
+    if (expiryWithin === 'expired') {
+      match['tenements.endDate'] = { $lt: new Date(), $gt: new Date(0) };
+    } else if (expiryWithin) {
       const days   = parseInt(expiryWithin);
       const now    = new Date();
       const cutoff = new Date(now.getTime() + days * 86400000);

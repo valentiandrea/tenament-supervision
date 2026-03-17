@@ -1104,10 +1104,9 @@ const App = (() => {
   // ─── Map ─────────────────────────────────────────────────
   function initMap() {
     if (!state.mapReady) {
-      state.mapInstance = L.map('map', { center: [-25, 122], zoom: 5 });
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap', maxZoom: 19
-      }).addTo(state.mapInstance);
+      state.mapInstance = L.map('map', { center: [-25, 122], zoom: 5, attributionControl: false });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(state.mapInstance);
+      L.control.attribution({ prefix: false }).addTo(state.mapInstance).addAttribution('&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors');
       state.mapReady = true;
     }
     loadMapData();
@@ -1492,11 +1491,11 @@ const App = (() => {
       const t = row.t || {};
 
       let expiryHtml;
-      if (!t.endDate) {
+      const endMs = t.endDate ? new Date(t.endDate).getTime() : NaN;
+      if (!t.endDate || isNaN(endMs)) {
         expiryHtml = '<span style="color:var(--text-3);">No date</span>';
       } else {
-        const ms   = new Date(t.endDate).getTime();
-        const days = Math.ceil((ms - now) / 86400000);
+        const days = Math.ceil((endMs - now) / 86400000);
         if (days < 0) {
           expiryHtml = `<span class="badge badge-red">Expired ${fmtDate(t.endDate)}</span>`;
         } else if (days <= 90) {

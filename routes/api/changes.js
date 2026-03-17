@@ -101,12 +101,20 @@ async function runRecheck(session, projectIds) {
     const freshApiResults = await queryByGeometry(project.polygon, project.kmlName);
     const freshTenements  = freshApiResults.map(mapApiDataToTenement);
 
+    // If the API returned nothing but we had stored tenements, the API likely
+    // failed (network error, timeout, etc.) — skip this project entirely to
+    // avoid destroying stored data with a false "all removed" signal.
+    if (freshTenements.length === 0 && (project.tenements || []).length > 0) {
+      console.warn(`TENGRAPH returned 0 results for "${project.kmlName}" (had ${project.tenements.length} stored) — skipping to preserve data`);
+      continue;
+    }
+
     // Compare against stored
     const detected = detectChanges(project, freshTenements, session._id);
     allChanges.push(...detected);
 
     // Update the project's stored tenements with fresh data
-    if (freshTenements.length > 0 || project.tenements.length > 0) {
+    if (freshTenements.length > 0) {
       await KMLProject.findByIdAndUpdate(project._id, {
         tenements:    freshTenements,
         matchedCount: freshTenements.length,

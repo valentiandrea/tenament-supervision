@@ -16,7 +16,7 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     const ext  = path.extname(file.originalname).toLowerCase();
     const mime = file.mimetype;
-    const allowedMimes = ['text/csv', 'text/plain', 'application/csv', 'application/vnd.ms-excel', 'application/octet-stream'];
+    const allowedMimes = ['text/csv', 'text/plain', 'application/csv', 'application/vnd.ms-excel'];
     if (ext === '.csv' && allowedMimes.includes(mime)) cb(null, true);
     else cb(new Error('Only CSV files are allowed'));
   },

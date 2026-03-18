@@ -26,6 +26,9 @@ router.post('/map', async (req, res) => {
     if (!['Polygon', 'MultiPolygon'].includes(geometry.type)) {
       return res.status(400).json({ success: false, error: 'geometry must be Polygon or MultiPolygon' });
     }
+    if (_countCoords(geometry.coordinates) > 10000) {
+      return res.status(400).json({ success: false, error: 'Geometry too complex (max 10,000 coordinates)' });
+    }
     const data = await gee.getNDVITilesClipped(geometry);
     res.json({ success: true, data });
   } catch (e) {
@@ -53,6 +56,12 @@ router.post('/point', async (req, res) => {
   }
 });
 
+function _countCoords(coords) {
+  if (!Array.isArray(coords)) return 0;
+  if (typeof coords[0] === 'number') return 1;
+  return coords.reduce((n, c) => n + _countCoords(c), 0);
+}
+
 // POST /api/flora/polygon  { geometry: GeoJSON geometry }
 // Returns NDVI time series (2018-2025) for the polygon area.
 router.post('/polygon', async (req, res) => {
@@ -63,6 +72,9 @@ router.post('/polygon', async (req, res) => {
     }
     if (!['Polygon', 'MultiPolygon'].includes(geometry.type)) {
       return res.status(400).json({ success: false, error: 'geometry must be Polygon or MultiPolygon' });
+    }
+    if (_countCoords(geometry.coordinates) > 10000) {
+      return res.status(400).json({ success: false, error: 'Geometry too complex (max 10,000 coordinates)' });
     }
     const data = await gee.getPolygonTimeSeries(geometry);
     res.json({ success: true, data });

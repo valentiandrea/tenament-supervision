@@ -19,11 +19,15 @@ const axios    = require('axios');
 const mongoose = require('mongoose');
 
 const MONGO_URI = process.env.MONGODB_URI;
-const API_KEY   = process.env.COMMODITY_API_KEY || 'f720da6d-f4df-4b1f-9996-28223d7cd024';
+const API_KEY   = process.env.COMMODITY_API_KEY;
 const API_BASE  = 'https://api.commoditypriceapi.com/v2';
 
 if (!MONGO_URI) {
   console.error('ERROR: MONGODB_URI is not set in .env');
+  process.exit(1);
+}
+if (!API_KEY) {
+  console.error('ERROR: COMMODITY_API_KEY is not set in .env');
   process.exit(1);
 }
 

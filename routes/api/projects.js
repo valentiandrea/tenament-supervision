@@ -124,8 +124,8 @@ router.get('/:id', async (req, res) => {
 router.patch('/:id/name', async (req, res) => {
   try {
     const { projectName } = req.body;
-    if (typeof projectName !== 'string' || projectName.trim().length > 200)
-      return res.status(400).json({ success: false, error: 'projectName must be a string under 200 characters' });
+    if (typeof projectName !== 'string' || projectName.trim().length < 1 || projectName.trim().length > 200)
+      return res.status(400).json({ success: false, error: 'projectName must be a non-empty string under 200 characters' });
 
     const project = await KMLProject.findByIdAndUpdate(
       req.params.id,

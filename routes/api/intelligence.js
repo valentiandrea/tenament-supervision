@@ -68,9 +68,10 @@ router.get('/', async (req, res) => {
     if (expiryWithin === 'expired') {
       match['tenements.endDate'] = { $lt: new Date(), $gt: new Date(0) };
     } else if (expiryWithin) {
-      const days   = parseInt(expiryWithin);
-      const now    = new Date();
-      const cutoff = new Date(now.getTime() + days * 86400000);
+      const days = parseInt(expiryWithin, 10);
+      if (isNaN(days) || days < 1 || days > 3650)
+        return res.status(400).json({ success: false, error: 'expiryWithin must be "expired" or a number of days between 1 and 3650' });
+      const cutoff = new Date(Date.now() + days * 86400000);
       match['tenements.endDate'] = { $lte: cutoff, $gt: new Date(0) };
     }
     if (search) {

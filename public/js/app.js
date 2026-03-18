@@ -21,8 +21,59 @@ const App = (() => {
   };
 
   // ─── Navigation ──────────────────────────────────────────
+  // ─── Auth state ──────────────────────────────────────────────
+  let authUser      = null;  // { id, username, role, displayName, mustChangePassword }
+  let pageAccess    = {};    // from server: { view: ['user','admin'], … }
+
+  // Intercept all fetch calls — on 401 TOKEN_EXPIRED try silent refresh once
+  const _origFetch = window.fetch.bind(window);
+  let _refreshing   = null;
+
+  async function apiFetch(url, opts = {}) {
+    opts.credentials = opts.credentials || 'same-origin';
+    let res = await _origFetch(url, opts);
+    if (res.status === 403) {
+      const body = await res.clone().json().catch(() => ({}));
+      if (body.code === 'MUST_CHANGE_PASSWORD') {
+        window.location.href = '/change-password';
+        return res;
+      }
+    }
+    if (res.status === 401) {
+      const body = await res.clone().json().catch(() => ({}));
+      if (body.code === 'TOKEN_EXPIRED' || body.code === 'UNAUTHENTICATED') {
+        // Try refresh once
+        if (!_refreshing) {
+          _refreshing = _origFetch('/api/auth/refresh', { method: 'POST', credentials: 'same-origin' })
+            .then(r => r.json())
+            .finally(() => { _refreshing = null; });
+        }
+        const refreshData = await _refreshing;
+        if (refreshData && refreshData.success) {
+          authUser   = refreshData.user;
+          pageAccess = refreshData.pageAccess || pageAccess;
+          // Retry original request
+          res = await _origFetch(url, opts);
+        } else {
+          window.location.href = '/login';
+          return res;
+        }
+      }
+    }
+    return res;
+  }
+
+  // Replace the global fetch used by all functions in this module
+  // (we shadow 'fetch' locally via a wrapper)
+  const fetch = apiFetch;
+
   function navigate(view) {
-    const titles = { dashboard: 'Dashboard', upload: 'Upload KML', projects: 'Projects', map: 'Map View', batches: 'Batches', changes: 'Change Monitoring', intelligence: 'Expiration', prices: 'Price Intelligence', flora: 'Flora & Fauna' };
+    // Role gate — redirect if user lacks permission
+    if (pageAccess[view] && authUser && !pageAccess[view].includes(authUser.role)) {
+      showToast('Access denied', 'error');
+      return;
+    }
+    const titles = { dashboard: 'Dashboard', upload: 'Upload KML', projects: 'Projects', map: 'Map View', batches: 'Batches', changes: 'Change Monitoring', intelligence: 'Expiration', prices: 'Price Intelligence', flora: 'Flora & Fauna', drill: 'Drill Programs', users: 'User Management' };
 
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -61,6 +112,8 @@ const App = (() => {
     if (view === 'changes') loadSessions();
     if (view === 'intelligence') { intelState.page = 1; loadIntelligence(); }
     if (view === 'prices') loadPriceSymbols();
+    if (view === 'drill') drillLoadList();
+    if (view === 'users') usersLoad();
   }
 
   // ─── Dashboard ───────────────────────────────────────────
@@ -1115,8 +1168,7 @@ const App = (() => {
   function initMap() {
     if (!state.mapReady) {
       state.mapInstance = L.map('map', { center: [-25, 122], zoom: 5, attributionControl: false });
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(state.mapInstance);
-      L.control.attribution({ prefix: false }).addTo(state.mapInstance).addAttribution('&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors');
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Tiles © Esri' }).addTo(state.mapInstance);
       state.mapReady = true;
     }
     loadMapData();
@@ -1790,10 +1842,10 @@ const App = (() => {
       return;
     }
 
-    floraState.map = L.map('flora-map', { center: [-25, 122], zoom: 5 });
+    floraState.map = L.map('flora-map', { center: [-25, 122], zoom: 5, attributionControl: false });
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors', maxZoom: 19
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles © Esri', maxZoom: 19
     }).addTo(floraState.map);
 
     // Leaflet.draw setup
@@ -2111,17 +2163,617 @@ const App = (() => {
     reader.readAsText(file);
   }
 
+  // ─── Drill Programs ───────────────────────────────────────
+  if (typeof proj4 !== 'undefined')
+    proj4.defs('EPSG:32750', '+proj=utm +zone=50 +south +datum=WGS84 +units=m +no_defs');
+
+  const drillState = { leafletMap: null, leafletLayers: [], currentProg: null };
+
+  async function drillLoadList() {
+    try {
+      const res  = await fetch('/api/drillprograms');
+      const data = await res.json();
+      const tbody = document.getElementById('drill-list-tbody');
+      if (!data.success) throw new Error(data.error);
+
+      // populate project dropdown in upload form
+      try {
+        const pr = await fetch('/api/projects?limit=200');
+        const pd = await pr.json();
+        const sel = document.getElementById('drill-import-project');
+        if (pd.success) pd.data.forEach(p => {
+          const o = document.createElement('option');
+          o.value = p._id;
+          o.textContent = p.projectName || p.kmlName;
+          sel.appendChild(o);
+        });
+      } catch {}
+
+      if (!data.data.length) {
+        tbody.innerHTML = `<tr><td colspan="7" style="padding:40px;text-align:center;color:var(--text-3);font-size:13px;">
+          No drill programs yet — import a CSV to get started.</td></tr>`;
+        document.getElementById('drill-list-sub').textContent = '0 programs';
+        return;
+      }
+
+      document.getElementById('drill-list-sub').textContent = `${data.data.length} program${data.data.length!==1?'s':''}`;
+
+      tbody.innerHTML = data.data.map(p => {
+        const dd  = p.holes.filter(h => h.type === 'DD').length;
+        const rc  = p.holes.filter(h => h.type === 'RC').length;
+        const tot = p.holes.reduce((s, h) => s + h.targetDepth, 0);
+        const dt  = new Date(p.createdAt).toLocaleDateString('en-AU', { day:'2-digit', month:'short', year:'numeric' });
+        return `<tr>
+          <td style="padding:10px 14px;font-weight:600;color:var(--text-1);">${p.name}</td>
+          <td style="padding:10px 14px;font-size:12.5px;color:var(--text-2);">${p.projectId ? 'linked' : '<span style="color:var(--text-3);">—</span>'}</td>
+          <td style="padding:10px 14px;text-align:center;"><span style="font-size:12px;font-weight:700;color:#3b82f6;">${dd}</span></td>
+          <td style="padding:10px 14px;text-align:center;"><span style="font-size:12px;font-weight:700;color:#f97316;">${rc}</span></td>
+          <td style="padding:10px 14px;text-align:right;font-size:12.5px;color:var(--text-2);">${tot.toLocaleString()} m</td>
+          <td style="padding:10px 14px;font-size:12px;color:var(--text-3);">${dt}</td>
+          <td style="padding:10px 14px;text-align:center;">
+            <button onclick="App.drillOpenDetail('${p._id}')" style="display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:5px;border:1px solid var(--border);background:var(--gray-light);color:var(--text-2);font-size:11.5px;font-weight:600;cursor:pointer;white-space:nowrap;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+              Details
+            </button>
+          </td>
+        </tr>`;
+      }).join('');
+    } catch (e) { showToast('Could not load drill programs: ' + e.message, 'error'); }
+  }
+
+  async function drillOpenDetail(id) {
+    try {
+      const res  = await fetch(`/api/drillprograms/${id}`);
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      const prog = data.data;
+      drillState.currentProg = prog;
+
+      document.getElementById('drill-list-state').style.display   = 'none';
+      document.getElementById('drill-detail-state').style.display = '';
+
+      document.getElementById('drill-detail-title').textContent = prog.name;
+
+      const dd  = prog.holes.filter(h => h.type === 'DD');
+      const rc  = prog.holes.filter(h => h.type === 'RC');
+      const tot = prog.holes.reduce((s, h) => s + h.targetDepth, 0);
+      document.getElementById('drill-detail-sub').textContent  = '';
+      document.getElementById('drill-s-dd').textContent        = dd.length;
+      document.getElementById('drill-s-rc').textContent        = rc.length;
+      document.getElementById('drill-s-total').textContent     = prog.holes.length;
+      document.getElementById('drill-s-metres').textContent    = tot.toLocaleString() + ' m';
+
+      document.getElementById('drill-holes-tbody').innerHTML = _drillHolesRows(prog);
+      document.getElementById('drill-table-sub').textContent = `${dd.length} DD + ${rc.length} RC`;
+
+      _drillInitMap(prog);
+    } catch (e) { showToast('Error loading drill program: ' + e.message, 'error'); }
+  }
+
+  function drillBack() {
+    document.getElementById('drill-detail-state').style.display = 'none';
+    document.getElementById('drill-list-state').style.display   = '';
+  }
+
+  function drillShowUpload() {
+    document.getElementById('drill-upload-form').style.display = '';
+    document.getElementById('drill-import-name').focus();
+  }
+  function drillHideUpload() {
+    document.getElementById('drill-upload-form').style.display = 'none';
+    document.getElementById('drill-csv-input').value = '';
+    document.getElementById('drill-csv-name').textContent = '';
+    document.getElementById('drill-import-btn').disabled = true;
+  }
+  function drillCsvPicked(input) {
+    const f = input.files[0];
+    document.getElementById('drill-csv-name').textContent = f ? f.name : '';
+    document.getElementById('drill-import-btn').disabled = !f;
+  }
+
+  async function drillImport() {
+    const name = document.getElementById('drill-import-name').value.trim();
+    const file = document.getElementById('drill-csv-input').files[0];
+    if (!name)  { showToast('Enter a program name', 'error'); return; }
+    if (!file)  { showToast('Select a CSV file', 'error'); return; }
+
+    const btn = document.getElementById('drill-import-btn');
+    btn.disabled = true; btn.textContent = 'Importing…';
+
+    try {
+      const fd = new FormData();
+      fd.append('name', name);
+      fd.append('csv', file);
+      const projectId = document.getElementById('drill-import-project').value;
+      if (projectId) fd.append('projectId', projectId);
+
+      const res  = await fetch('/api/drillprograms', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+
+      showToast(`Imported ${data.data.holes.length} holes`, 'success');
+      drillHideUpload();
+      drillLoadList();
+    } catch (e) {
+      showToast('Import failed: ' + e.message, 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Import';
+    }
+  }
+
+  async function drillDelete(id, name) {
+    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/drillprograms/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      showToast(`"${name}" deleted`);
+      drillLoadList();
+    } catch (e) { showToast('Delete failed: ' + e.message, 'error'); }
+  }
+
+  const DRILL_STATUS_COLORS = {
+    'Planned':  { bg: 'rgba(107,114,128,0.12)', color: '#6b7280' },
+    'Active':   { bg: 'rgba(59,130,246,0.12)',  color: '#3b82f6' },
+    'Complete': { bg: 'rgba(34,197,94,0.12)',   color: '#22c55e' },
+    'On Hold':  { bg: 'rgba(249,115,22,0.12)',  color: '#f97316' },
+  };
+
+  function _drillHolesRows(prog) {
+    return prog.holes.map(h => {
+      const st    = h.status || 'Planned';
+      const sc    = DRILL_STATUS_COLORS[st] || DRILL_STATUS_COLORS['Planned'];
+      const drilled = h.metresDrilled || 0;
+      const pct   = h.targetDepth > 0 ? Math.min(100, (drilled / h.targetDepth) * 100) : 0;
+      const typeColor = h.type === 'DD' ? '#3b82f6' : '#f97316';
+      const typeBg    = h.type === 'DD' ? 'rgba(59,130,246,0.15)' : 'rgba(249,115,22,0.15)';
+      return `<tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:7px 14px;"><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11.5px;font-weight:700;background:${typeBg};color:${typeColor};">${h.type}</span></td>
+        <td style="padding:7px 14px;font-size:13px;font-weight:600;color:var(--text-1);">${h.name}</td>
+        <td style="padding:7px 14px;">
+          <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11.5px;font-weight:600;background:${sc.bg};color:${sc.color};">${st}</span>
+        </td>
+        <td style="padding:7px 14px;text-align:right;">
+          <div style="font-size:12.5px;color:var(--text-2);">${drilled} m</div>
+          <div style="margin-top:3px;height:3px;border-radius:2px;background:var(--border);width:70px;margin-left:auto;">
+            <div style="height:3px;border-radius:2px;background:${sc.color};width:${pct}%;"></div>
+          </div>
+        </td>
+        <td style="padding:7px 14px;font-size:12.5px;text-align:right;color:var(--text-2);">${h.targetDepth} m</td>
+        <td style="padding:7px 14px;font-size:12.5px;text-align:right;color:var(--text-2);">${h.azimuth}°</td>
+        <td style="padding:7px 14px;font-size:12.5px;text-align:right;color:var(--text-2);">−${h.dip}°</td>
+        <td style="padding:7px 14px;text-align:center;">
+          <button data-prog="${esc(prog._id)}" data-hole="${esc(h.name)}" class="drill-edit-hole-btn" style="display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:5px;border:1px solid var(--border);background:var(--gray-light);color:var(--text-2);font-size:11.5px;font-weight:600;cursor:pointer;white-space:nowrap;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+            Edit
+          </button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  const DRILL_STATUS_BORDER = {
+    'Planned':  '#6b7280', 'Active': '#3b82f6', 'Complete': '#22c55e', 'On Hold': '#f97316'
+  };
+  const DRILL_STATUS_BG = {
+    'Planned':  'rgba(107,114,128,0.1)', 'Active': 'rgba(59,130,246,0.1)',
+    'Complete': 'rgba(34,197,94,0.1)',   'On Hold': 'rgba(249,115,22,0.1)'
+  };
+
+  function drillSetStatus(btn) {
+    const status = btn.dataset.status;
+    document.getElementById('hmodal-status').value = status;
+    document.querySelectorAll('#hmodal-status-btns button').forEach(b => {
+      const active = b.dataset.status === status;
+      b.style.borderColor  = active ? DRILL_STATUS_BORDER[status] : 'transparent';
+      b.style.background   = active ? DRILL_STATUS_BG[status] : 'var(--gray-light)';
+      b.style.color        = active ? DRILL_STATUS_BORDER[status] : 'var(--text-2)';
+    });
+  }
+
+  function drillOpenHole(progId, holeName) {
+    const prog = drillState.currentProg;
+    if (!prog) return;
+    const h = prog.holes.find(x => x.name === holeName);
+    if (!h) return;
+    document.getElementById('hmodal-title').textContent = h.name;
+    document.getElementById('hmodal-sub').textContent   = `${h.type} · Az ${h.azimuth}° · Dip −${h.dip}° · Target ${h.targetDepth} m`;
+    document.getElementById('hmodal-prog-id').value   = progId;
+    document.getElementById('hmodal-hole-name').value = holeName;
+    document.getElementById('hmodal-metres').value    = h.metresDrilled || 0;
+    document.getElementById('hmodal-metres').max      = h.targetDepth;
+    document.getElementById('hmodal-target-label').textContent = `(target: ${h.targetDepth} m)`;
+    document.getElementById('hmodal-notes').value     = h.notes || '';
+    document.getElementById('hmodal').style.display   = 'flex';
+    // set status button group
+    const btn = document.querySelector(`#hmodal-status-btns button[data-status="${h.status || 'Planned'}"]`);
+    if (btn) drillSetStatus(btn);
+  }
+
+  function drillCloseHole() {
+    document.getElementById('hmodal').style.display = 'none';
+  }
+
+  async function drillSaveHole() {
+    const progId       = document.getElementById('hmodal-prog-id').value;
+    const holeName     = document.getElementById('hmodal-hole-name').value;
+    const status       = document.getElementById('hmodal-status').value;
+    const metresDrilled = parseFloat(document.getElementById('hmodal-metres').value) || 0;
+    const notes        = document.getElementById('hmodal-notes').value;
+
+    const btn = document.getElementById('hmodal-save-btn');
+    btn.disabled = true; btn.textContent = 'Saving…';
+
+    try {
+      const res  = await fetch(`/api/drillprograms/${progId}/holes/${encodeURIComponent(holeName)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, metresDrilled, notes })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+
+      drillState.currentProg = data.data;
+      document.getElementById('drill-holes-tbody').innerHTML = _drillHolesRows(data.data);
+      drillCloseHole();
+      showToast('Hole updated', 'success');
+    } catch (e) {
+      showToast('Save failed: ' + e.message, 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save';
+    }
+  }
+
+  function _drillInitMap(prog) {
+    if (!window.proj4) { showToast('proj4 not loaded', 'error'); return; }
+
+    // init map once
+    if (!drillState.leafletMap) {
+      const map = L.map('drill-map', { preferCanvas: true, attributionControl: false });
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles © Esri',
+        maxZoom: 19
+      }).addTo(map);
+      drillState.leafletMap = map;
+    }
+
+    const map = drillState.leafletMap;
+
+    // clear old layers
+    drillState.leafletLayers.forEach(l => map.removeLayer(l));
+    drillState.leafletLayers = [];
+
+    const toLatLng = (e, n) => {
+      const [lon, lat] = proj4('EPSG:32750', 'WGS84', [e, n]);
+      return [lat, lon];
+    };
+
+    // ── Drill hole collars + horizontal trace projections ──
+    const allLatLngs = [];
+
+    prog.holes.forEach(h => {
+      const az    = h.azimuth  * Math.PI / 180;
+      const dip   = h.dip      * Math.PI / 180;
+      const depth = h.targetDepth;
+      const hDist = depth * Math.cos(dip);  // horizontal projection of the trace
+
+      const collarLL = toLatLng(h.easting, h.northing);
+      const toeE     = h.easting  + Math.sin(az) * hDist;
+      const toeN     = h.northing + Math.cos(az) * hDist;
+      const toeLL    = toLatLng(toeE, toeN);
+
+      allLatLngs.push(collarLL);
+      const color = h.type === 'DD' ? '#3b82f6' : '#f97316';
+
+      // dashed trace line (horizontal projection)
+      const traceLine = L.polyline([collarLL, toeLL], {
+        color, weight: 1.8,
+        dashArray: h.type === 'DD' ? '6 4' : '4 3',
+        opacity: 0.75
+      }).addTo(map);
+      drillState.leafletLayers.push(traceLine);
+
+      // collar marker
+      const marker = L.circleMarker(collarLL, {
+        radius: h.type === 'DD' ? 7 : 6,
+        fillColor: color,
+        color: '#fff',
+        weight: 1.5,
+        fillOpacity: 1
+      }).addTo(map);
+
+      marker.bindPopup(`
+        <div style="font-size:13px;line-height:1.7;min-width:160px;">
+          <strong style="font-size:14px;">${h.name}</strong><br>
+          <span style="display:inline-block;padding:1px 7px;border-radius:3px;font-size:11px;font-weight:700;
+            background:${h.type==='DD'?'rgba(59,130,246,0.15)':'rgba(249,115,22,0.15)'};
+            color:${color};margin-bottom:4px;">${h.type}</span><br>
+          Azimuth: <strong>${h.azimuth}°</strong><br>
+          Dip: <strong>−${h.dip}°</strong><br>
+          Target depth: <strong>${h.targetDepth} m</strong><br>
+          Horiz. projection: <strong>${hDist.toFixed(0)} m</strong>
+        </div>`, { maxWidth: 220 });
+
+      drillState.leafletLayers.push(marker);
+    });
+
+    if (allLatLngs.length) {
+      map.fitBounds(window.L.latLngBounds(allLatLngs), { padding: [60, 60] });
+    }
+
+    setTimeout(() => map.invalidateSize(), 120);
+  }
+
+  // ─── Change Password Modal ────────────────────────────────
+  function openCpModal() {
+    ['cp-current','cp-new','cp-confirm'].forEach(id => { document.getElementById(id).value = ''; });
+    const msg = document.getElementById('cpmodal-msg');
+    msg.style.display = 'none';
+    document.getElementById('cpmodal').style.display = 'flex';
+    document.getElementById('cp-current').focus();
+  }
+
+  function closeCpModal() {
+    document.getElementById('cpmodal').style.display = 'none';
+  }
+
+  async function savePassword() {
+    const current = document.getElementById('cp-current').value;
+    const newpw   = document.getElementById('cp-new').value;
+    const confirm = document.getElementById('cp-confirm').value;
+    const msg     = document.getElementById('cpmodal-msg');
+
+    function showMsg(text, type) {
+      msg.textContent       = text;
+      msg.style.display     = '';
+      msg.style.background  = type === 'error' ? 'rgba(248,81,73,.1)'           : 'rgba(63,185,80,.1)';
+      msg.style.border      = type === 'error' ? '1px solid rgba(248,81,73,.3)' : '1px solid rgba(63,185,80,.3)';
+      msg.style.color       = type === 'error' ? '#f85149'                      : '#3fb950';
+    }
+
+    if (!current || !newpw || !confirm) return showMsg('All fields are required.', 'error');
+    if (newpw !== confirm) return showMsg('New passwords do not match.', 'error');
+
+    const btn = document.getElementById('cp-save-btn');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const res  = await fetch('/api/auth/change-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: current, newPassword: newpw })
+      });
+      const data = await res.json();
+      if (!data.success) return showMsg(data.error, 'error');
+      showMsg('Password updated. Logging out…', 'success');
+      setTimeout(() => { window.location.href = '/login'; }, 1800);
+    } catch (_) {
+      showMsg('Network error. Please try again.', 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Update Password';
+    }
+  }
+
+  // ─── User Management (admin) ───────────────────────────────
+  async function usersLoad() {
+    const tbody = document.getElementById('users-tbody');
+    try {
+      const res  = await fetch('/api/auth/users');
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+
+      if (!data.data.length) {
+        tbody.innerHTML = `<tr><td colspan="6" style="padding:32px;text-align:center;color:var(--text-3);">No users yet.</td></tr>`;
+        return;
+      }
+
+      const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      tbody.innerHTML = data.data.map(u => {
+        const isMe = authUser && u._id === authUser.id;
+        const lastLogin = u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString('en-AU',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+        const created   = new Date(u.createdAt).toLocaleDateString('en-AU',{day:'2-digit',month:'short',year:'numeric'});
+        const roleBg    = u.role === 'admin' ? 'rgba(249,115,22,0.12)' : 'rgba(59,130,246,0.12)';
+        const roleColor = u.role === 'admin' ? '#f97316' : '#3b82f6';
+        return `<tr>
+          <td style="padding:10px 14px;font-weight:600;color:var(--text-1);">${esc(u.username)}${isMe ? ' <span style="font-size:11px;color:var(--text-3);">(you)</span>' : ''}</td>
+          <td style="padding:10px 14px;color:var(--text-2);">${esc(u.displayName || '—')}</td>
+          <td style="padding:10px 14px;">
+            <select onchange="App.usersChangeRole('${esc(u._id)}',this.value)" style="background:${roleBg};color:${roleColor};border:none;border-radius:5px;padding:3px 8px;font-size:12px;font-weight:600;cursor:pointer;">
+              <option value="user"  ${u.role==='user'  ? 'selected':''}>User</option>
+              <option value="admin" ${u.role==='admin' ? 'selected':''}>Admin</option>
+            </select>
+          </td>
+          <td style="padding:10px 14px;font-size:12px;color:var(--text-3);">${lastLogin}</td>
+          <td style="padding:10px 14px;font-size:12px;color:var(--text-3);">${created}</td>
+          <td style="padding:10px 14px;display:flex;gap:6px;">
+            <button onclick="App.usersResetPassword('${esc(u._id)}','${esc(u.username)}')" style="padding:4px 8px;border-radius:5px;border:1px solid var(--border);background:var(--gray-light);color:var(--text-2);font-size:11.5px;font-weight:600;cursor:pointer;">Reset PW</button>
+            ${!isMe ? `<button onclick="App.usersDelete('${esc(u._id)}','${esc(u.username)}')" style="padding:4px 8px;border-radius:5px;border:1px solid rgba(248,81,73,.3);background:rgba(248,81,73,.08);color:#f85149;font-size:11.5px;font-weight:600;cursor:pointer;">Delete</button>` : ''}
+          </td>
+        </tr>`;
+      }).join('');
+    } catch (e) { showToast('Could not load users: ' + e.message, 'error'); }
+  }
+
+  async function usersChangeRole(id, role) {
+    try {
+      const res  = await fetch(`/api/auth/users/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role }) });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      showToast('Role updated', 'success');
+      usersLoad();
+    } catch (e) { showToast('Failed: ' + e.message, 'error'); usersLoad(); }
+  }
+
+  async function usersResetPassword(id, username) {
+    const pw = prompt(`Set new password for "${username}":\n(min 10 chars, upper+lower+digit+special)`);
+    if (!pw) return;
+    try {
+      const res  = await fetch(`/api/auth/users/${id}/reset-password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ newPassword: pw }) });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      showToast(`Password reset for "${username}". They must log in again.`, 'success');
+    } catch (e) { showToast('Failed: ' + e.message, 'error'); }
+  }
+
+  async function usersDelete(id, username) {
+    if (!confirm(`Delete user "${username}"? This cannot be undone.`)) return;
+    try {
+      const res  = await fetch(`/api/auth/users/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      showToast(`User "${username}" deleted`);
+      usersLoad();
+    } catch (e) { showToast('Failed: ' + e.message, 'error'); }
+  }
+
+  function usersShowAdd() {
+    document.getElementById('user-add-form').style.display = '';
+    document.getElementById('new-username').focus();
+  }
+  function usersHideAdd() {
+    document.getElementById('user-add-form').style.display = 'none';
+    ['new-username','new-password','new-displayname'].forEach(id => { document.getElementById(id).value = ''; });
+    document.getElementById('new-role').value = 'user';
+  }
+
+  async function usersCreate() {
+    const username    = document.getElementById('new-username').value.trim();
+    const password    = document.getElementById('new-password').value;
+    const displayName = document.getElementById('new-displayname').value.trim();
+    const role        = document.getElementById('new-role').value;
+    if (!username || !password) return showToast('Username and password required', 'error');
+
+    const btn = document.getElementById('user-create-btn');
+    btn.disabled = true; btn.textContent = 'Creating…';
+    try {
+      const res  = await fetch('/api/auth/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password, role, displayName }) });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      showToast(`User "${username}" created`, 'success');
+      usersHideAdd();
+      usersLoad();
+    } catch (e) { showToast('Failed: ' + e.message, 'error'); }
+    finally { btn.disabled = false; btn.textContent = 'Create User'; }
+  }
+
   // ─── Init ─────────────────────────────────────────────────
-  function init() {
+  async function init() {
+    // Bootstrap auth — check if logged in, else redirect
+    try {
+      const res  = await _origFetch('/api/auth/me', { credentials: 'same-origin' });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        // Try silent refresh
+        const ref = await _origFetch('/api/auth/refresh', { method: 'POST', credentials: 'same-origin' });
+        const rd  = await ref.json();
+        if (!rd.success) { window.location.href = '/login'; return; }
+        authUser   = rd.user;
+        pageAccess = rd.pageAccess || {};
+      } else {
+        authUser   = data.user;
+        pageAccess = data.pageAccess || {};
+      }
+    } catch (_) { window.location.href = '/login'; return; }
+
+    if (authUser.mustChangePassword) { window.location.href = '/change-password'; return; }
+
+    // Update sidebar user info
+    document.getElementById('sidebar-username').textContent = authUser.displayName || authUser.username;
+    document.getElementById('sidebar-role').textContent     = authUser.role === 'admin' ? 'Administrator' : 'User';
+
+    // Hide nav items the current role cannot access
+    document.querySelectorAll('[data-role]').forEach(el => {
+      const required = el.dataset.role;
+      if (required === 'admin' && authUser.role !== 'admin') {
+        el.style.display = 'none';
+      }
+    });
+
+    // ── Static button wiring (replaces inline onclick= attributes) ──
+    const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
+
+    on('modal-close-btn',      closeModal);
+    on('modal-cancel-btn',     closeModal);
+    on('modal-save-btn',       saveClassification);
+    on('mcls-internal',        () => setPendingCls('internal'));
+    on('mcls-external',        () => setPendingCls('external'));
+    on('mcls-unclassified',    () => setPendingCls('unclassified'));
+    on('tmodal-close-btn',     closeTenementModal);
+    on('tmodal-close-btn2',    closeTenementModal);
+    on('cpmodal-close-btn',    closeCpModal);
+    on('cpmodal-cancel-btn',   closeCpModal);
+    on('cp-save-btn',          savePassword);
+    on('hmodal-close-btn',     drillCloseHole);
+    on('hmodal-cancel-btn',    drillCloseHole);
+    on('hmodal-save-btn',      drillSaveHole);
+    on('drill-back-btn',       drillBack);
+    on('drill-show-upload-btn',drillShowUpload);
+    on('drill-hide-upload-btn',drillHideUpload);
+    on('drill-import-btn',     drillImport);
+    on('refresh-stats-btn',    refreshStats);
+    on('nav-to-upload-btn',    () => navigate('upload'));
+    on('upload-btn',           startUpload);
+    on('clear-files-btn',      clearFiles);
+    on('csv-upload-btn',       uploadMetadataCSV);
+    on('export-csv-btn',       exportCSV);
+    on('bulk-internal-btn',    () => bulkClassify('internal'));
+    on('bulk-external-btn',    () => bulkClassify('external'));
+    on('clear-selection-btn',  clearSelection);
+    on('recheck-btn',          startRecheck);
+    on('fit-bounds-btn',       fitMapBounds);
+    on('flora-scale-1',        () => floraBboxScale(1));
+    on('flora-scale-2',        () => floraBboxScale(2));
+    on('flora-scale-3',        () => floraBboxScale(3));
+    on('flora-clear-btn',      floraClearProject);
+    on('flora-csv-btn',        floraExportCSV);
+    on('flora-hide-chart-btn', floraHideChart);
+    on('dash-view-batches-btn',() => navigate('batches'));
+
+    // Overlay click-outside to close
+    document.getElementById('cpmodal').addEventListener('click', e => { if (e.target === e.currentTarget) closeCpModal(); });
+    document.getElementById('hmodal').addEventListener('click',  e => { if (e.target === e.currentTarget) drillCloseHole(); });
+
+    // Status picker event delegation
+    document.getElementById('hmodal-status-btns').addEventListener('click', e => {
+      const btn = e.target.closest('[data-status]');
+      if (btn) drillSetStatus(btn);
+    });
+
+    // Price range buttons
+    document.querySelectorAll('[data-days]').forEach(btn => {
+      btn.addEventListener('click', () => setPriceRange(parseInt(btn.dataset.days), btn));
+    });
+
+    // Nav click handlers
     document.querySelectorAll('.nav-item[data-view]').forEach(el =>
       el.addEventListener('click', e => { e.preventDefault(); navigate(el.dataset.view); })
     );
+
+    // Change password
+    document.getElementById('change-pw-btn').addEventListener('click', openCpModal);
+
+    // Logout
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      await _origFetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
+      window.location.href = '/login';
+    });
+
+    // Users page buttons
+    document.getElementById('user-add-btn').addEventListener('click', usersShowAdd);
+    document.getElementById('user-cancel-btn').addEventListener('click', usersHideAdd);
+    document.getElementById('user-create-btn').addEventListener('click', usersCreate);
+
+    // Delegate drill hole edit buttons (avoids inline onclick with user data)
+    document.addEventListener('click', e => {
+      const btn = e.target.closest('.drill-edit-hole-btn');
+      if (btn) drillOpenHole(btn.dataset.prog, btn.dataset.hole);
+    });
+
     document.getElementById('modal').addEventListener('click', e => {
       if (e.target === e.currentTarget) closeModal();
     });
     document.getElementById('tmodal').addEventListener('click', e => {
       if (e.target === e.currentTarget) closeTenementModal();
     });
+
     setupUpload();
     setupCSVUpload();
     loadDashboard();
@@ -2146,6 +2798,10 @@ const App = (() => {
     loadPriceSymbols, loadPriceData, setPriceRange,
     floraHideChart, floraExportCSV, floraUploadKML,
     floraProjectSearch, floraSelectProject, floraBboxScale, floraClearProject,
+    drillOpenDetail, drillBack, drillShowUpload, drillHideUpload, drillCsvPicked, drillImport, drillDelete,
+    drillOpenHole, drillCloseHole, drillSaveHole, drillSetStatus,
+    usersChangeRole, usersResetPassword, usersDelete,
+    openCpModal, closeCpModal, savePassword,
     showToast, init
   };
 })();

@@ -64,9 +64,9 @@ router.post('/upload', upload.array('kmlFiles', 200), async (req, res) => {
 
   res.json({ success: true, data: { batchId: batch._id, message: 'Processing started' } });
 
-  processBatch(batch, files).catch(err => {
+  processBatch(batch, files).catch(async err => {
     console.error('Batch processing error:', err);
-    Batch.findByIdAndUpdate(batch._id, { status: 'failed', error: err.message }).exec();
+    await Batch.findByIdAndUpdate(batch._id, { status: 'failed', error: err.message }).catch(e => console.error('Failed to update batch error status:', e));
   });
 });
 

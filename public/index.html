@@ -75,20 +75,35 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22V12M12 12C12 12 7 9.5 4 6c-1-1-1.5-3 0-4 1.5-1 3 0 4 1 1-3 3-5 4-5s3 2 4 5c1-1 2.5-2 4-1 1.5 1 1 3 0 4-3 3.5-8 6-8 6z"/></svg>
         Flora &amp; Fauna
       </a>
+      <a class="nav-item" data-view="drill" href="#">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="15"/><polygon points="9 15 15 15 12 22"/><line x1="9" y1="5" x2="15" y2="5"/><line x1="9" y1="9" x2="15" y2="9"/></svg>
+        Drill Programs
+      </a>
 
-      <div class="nav-group-label" style="margin-top:8px">Import</div>
-      <a class="nav-item" data-view="upload" href="#">
+      <div class="nav-group-label" style="margin-top:8px" data-role="admin">Import</div>
+      <a class="nav-item" data-view="upload" href="#" data-role="admin">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         Upload KML
+      </a>
+
+      <div class="nav-group-label" style="margin-top:8px" data-role="admin">Admin</div>
+      <a class="nav-item" data-view="users" href="#" data-role="admin">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Users
       </a>
     </nav>
 
     <div class="sidebar-footer">
-      <div class="dot" id="db-dot"></div>
-      <span id="db-label">Connected</span>
-      <a href="/.auth/logout" class="logout-btn" title="Sign out">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-      </a>
+      <div style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1;overflow:hidden;">
+        <div style="font-size:12px;font-weight:600;color:var(--sidebar-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:1;" id="sidebar-username">—</div>
+        <div style="font-size:11px;color:var(--sidebar-text);opacity:0.6;" id="sidebar-role">—</div>
+      </div>
+      <button id="change-pw-btn" title="Change password" style="background:none;border:none;cursor:pointer;color:var(--sidebar-text);opacity:0.7;padding:4px;border-radius:5px;display:flex;align-items:center;flex-shrink:0;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </button>
+      <button id="logout-btn" title="Sign out" style="background:none;border:none;cursor:pointer;color:var(--sidebar-text);opacity:0.7;padding:4px;border-radius:5px;display:flex;align-items:center;flex-shrink:0;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
     </div>
   </aside>
 
@@ -101,11 +116,11 @@
         <div class="topbar-title" id="view-title">Dashboard</div>
       </div>
       <div class="topbar-actions">
-        <button class="btn btn-secondary btn-sm" onclick="App.refreshStats()">
+        <button class="btn btn-secondary btn-sm" id="refresh-stats-btn">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.15"/></svg>
           Refresh
         </button>
-        <button class="btn btn-primary btn-sm" onclick="App.navigate('upload')">
+        <button class="btn btn-primary btn-sm" id="nav-to-upload-btn">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Upload KML
         </button>
@@ -166,7 +181,7 @@
           </div>
           <div class="card">
             <div class="card-header"><div class="card-title">Recent Batches</div>
-              <button class="btn btn-ghost btn-sm" onclick="App.navigate('batches')">View all</button>
+              <button class="btn btn-ghost btn-sm" id="dash-view-batches-btn">View all</button>
             </div>
             <div class="card-body" id="d-batches">
               <div style="color:var(--text-3);font-size:13px;">Loading...</div>
@@ -215,11 +230,11 @@
             <div id="file-list" class="file-list"></div>
 
             <div style="margin-top:14px;display:flex;align-items:center;gap:8px;">
-              <button class="btn btn-primary" id="upload-btn" onclick="App.startUpload()" disabled>
+              <button class="btn btn-primary" id="upload-btn" disabled>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="10 15 12 17 14 15"/><line x1="12" y1="7" x2="12" y2="17"/></svg>
                 Process &amp; Upload
               </button>
-              <button class="btn btn-secondary" onclick="App.clearFiles()">Clear</button>
+              <button class="btn btn-secondary" id="clear-files-btn">Clear</button>
               <span id="upload-count" style="font-size:12px;color:var(--text-3)"></span>
             </div>
 
@@ -248,7 +263,7 @@
                   <div class="upload-sub">or <strong>click to browse</strong></div>
                 </div>
                 <div id="csv-file-name" style="font-size:12px;color:var(--text-3);margin-bottom:8px;"></div>
-                <button class="btn btn-primary btn-sm" id="csv-upload-btn" onclick="App.uploadMetadataCSV()" disabled>
+                <button class="btn btn-primary btn-sm" id="csv-upload-btn" disabled>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                   Import Metadata
                 </button>
@@ -276,7 +291,7 @@
             <div class="section-sub" id="projects-sub">Loading...</div>
           </div>
           <div style="display:flex;gap:8px;">
-            <button class="btn btn-secondary btn-sm" onclick="App.exportCSV()">
+            <button class="btn btn-secondary btn-sm" id="export-csv-btn">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Export CSV
             </button>
@@ -308,9 +323,9 @@
         <div class="bulk-bar" id="bulk-bar">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
           <span id="bulk-count">0 selected</span>
-          <button class="btn btn-xs btn-primary" onclick="App.bulkClassify('internal')">Mark Internal</button>
-          <button class="btn btn-xs" style="background:var(--orange);color:#fff;border-color:var(--orange);" onclick="App.bulkClassify('external')">Mark External</button>
-          <button class="btn btn-xs btn-secondary" onclick="App.clearSelection()">Deselect</button>
+          <button class="btn btn-xs btn-primary" id="bulk-internal-btn">Mark Internal</button>
+          <button class="btn btn-xs" style="background:var(--orange);color:#fff;border-color:var(--orange);" id="bulk-external-btn">Mark External</button>
+          <button class="btn btn-xs btn-secondary" id="clear-selection-btn">Deselect</button>
         </div>
 
         <div class="projects-table-wrap">
@@ -357,7 +372,7 @@
             <div class="section-title">Change Monitoring</div>
             <div class="section-sub">Re-check TENGRAPH to detect status changes, new or removed tenements, licence changes and more</div>
           </div>
-          <button class="btn btn-primary" id="recheck-btn" onclick="App.startRecheck()">
+          <button class="btn btn-primary" id="recheck-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.15"/></svg>
             Re-check All Projects
           </button>
@@ -473,12 +488,12 @@
             <option value="">Select a commodity...</option>
           </select>
           <div style="display:flex;gap:4px;flex-wrap:wrap;" id="price-range-btns">
-            <button class="btn btn-sm btn-secondary" data-days="90"   onclick="App.setPriceRange(90,  this)">3M</button>
-            <button class="btn btn-sm btn-secondary" data-days="180"  onclick="App.setPriceRange(180, this)">6M</button>
-            <button class="btn btn-sm btn-secondary active" data-days="365"  onclick="App.setPriceRange(365, this)">1Y</button>
-            <button class="btn btn-sm btn-secondary" data-days="730"  onclick="App.setPriceRange(730, this)">2Y</button>
-            <button class="btn btn-sm btn-secondary" data-days="1825" onclick="App.setPriceRange(1825,this)">5Y</button>
-            <button class="btn btn-sm btn-secondary" data-days="3650" onclick="App.setPriceRange(3650,this)">10Y</button>
+            <button class="btn btn-sm btn-secondary" data-days="90">3M</button>
+            <button class="btn btn-sm btn-secondary" data-days="180">6M</button>
+            <button class="btn btn-sm btn-secondary active" data-days="365">1Y</button>
+            <button class="btn btn-sm btn-secondary" data-days="730">2Y</button>
+            <button class="btn btn-sm btn-secondary" data-days="1825">5Y</button>
+            <button class="btn btn-sm btn-secondary" data-days="3650">10Y</button>
           </div>
         </div>
 
@@ -552,6 +567,235 @@
         </div>
       </div><!-- /view-prices -->
 
+      <!-- ── DRILL PROGRAMS ── -->
+      <div class="view" id="view-drill">
+
+        <!-- ── LIST STATE ── -->
+        <div id="drill-list-state">
+          <div class="section-hdr">
+            <div>
+              <div class="section-title">Drill Programs</div>
+              <div class="section-sub" id="drill-list-sub">All imported drill programs</div>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <a class="btn btn-secondary btn-sm" href="/api/drillprograms/template" download>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Download Template
+              </a>
+              <button class="btn btn-primary btn-sm" id="drill-show-upload-btn">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Import CSV
+              </button>
+            </div>
+          </div>
+
+          <!-- Upload form (hidden by default) -->
+          <div id="drill-upload-form" style="display:none;" class="card mb-4">
+            <div class="card-header">
+              <div class="card-title">Import Drill Program</div>
+              <button class="btn btn-ghost btn-sm" id="drill-hide-upload-btn">✕ Cancel</button>
+            </div>
+            <div class="card-body">
+              <div class="grid-2" style="gap:16px;">
+                <div>
+                  <div class="form-group">
+                    <label class="form-label">Program Name *</label>
+                    <input type="text" id="drill-import-name" placeholder="e.g. West Barlee Phase 1" />
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Link to Project (optional)</label>
+                    <select class="select" id="drill-import-project" style="width:100%;">
+                      <option value="">— none —</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <div class="form-group">
+                    <label class="form-label">CSV File *</label>
+                    <div class="upload-zone" id="drill-csv-zone" style="padding:18px;">
+                      <input type="file" id="drill-csv-input" accept=".csv" onchange="App.drillCsvPicked(this)" />
+                      <div class="upload-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+                      <div class="upload-title" style="font-size:13px;">Drop CSV here</div>
+                      <div class="upload-sub">or <strong>click to browse</strong></div>
+                    </div>
+                    <div id="drill-csv-name" style="font-size:12px;color:var(--text-3);margin-top:4px;"></div>
+                  </div>
+                </div>
+              </div>
+              <button class="btn btn-primary" id="drill-import-btn" disabled>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Import
+              </button>
+            </div>
+          </div>
+
+          <!-- Programs table -->
+          <div class="projects-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Program</th>
+                  <th>Linked Project</th>
+                  <th style="text-align:center;">DD</th>
+                  <th style="text-align:center;">RC</th>
+                  <th style="text-align:right;">Total m</th>
+                  <th>Imported</th>
+                  <th style="width:40px;"></th>
+                </tr>
+              </thead>
+              <tbody id="drill-list-tbody">
+                <tr><td colspan="7" class="loading-cell"><div style="display:flex;align-items:center;justify-content:center;gap:8px;"><div class="spinner"></div>Loading…</div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div><!-- /drill-list-state -->
+
+        <!-- ── DETAIL STATE ── -->
+        <div id="drill-detail-state" style="display:none;">
+          <div class="section-hdr">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <button class="btn btn-secondary btn-sm" id="drill-back-btn">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+                All Programs
+              </button>
+              <div>
+                <div class="section-title" id="drill-detail-title">—</div>
+                <div class="section-sub" id="drill-detail-sub"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stats row -->
+          <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px;">
+            <div class="stat-card">
+              <div class="stat-label">DD Holes</div>
+              <div class="stat-value" id="drill-s-dd" style="color:var(--blue);">—</div>
+              <div class="stat-sub">Diamond drill</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">RC Holes</div>
+              <div class="stat-value" id="drill-s-rc" style="color:#f97316;">—</div>
+              <div class="stat-sub">Reverse circulation</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Total Holes</div>
+              <div class="stat-value" id="drill-s-total">—</div>
+              <div class="stat-sub">All types</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Total Metres</div>
+              <div class="stat-value" id="drill-s-metres">—</div>
+              <div class="stat-sub">Combined target depth</div>
+            </div>
+          </div>
+
+          <!-- Map -->
+          <div class="card mb-4">
+            <div class="card-header" style="padding:10px 16px;">
+              <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                <div class="card-title">Drill Hole Map</div>
+                <div style="display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text-3);">
+                  <span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;background:#3b82f6;border-radius:50%;border:1.5px solid #fff;"></span>DD</span>
+                  <span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;background:#f97316;border-radius:50%;border:1.5px solid #fff;"></span>RC</span>
+                  <span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:12px;height:0;border-top:2px dashed #3b82f6;"></span>DD trace</span>
+                  <span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:12px;height:0;border-top:2px dashed #f97316;"></span>RC trace</span>
+                </div>
+              </div>
+            </div>
+            <div id="drill-map" style="height:500px;border-radius:0 0 8px 8px;z-index:0;"></div>
+          </div>
+
+          <!-- Holes table -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Drill Holes</div>
+              <span style="font-size:12px;color:var(--text-3);" id="drill-table-sub"></span>
+            </div>
+            <div style="overflow-x:auto;">
+              <table style="width:100%;border-collapse:collapse;">
+                <thead>
+                  <tr style="border-bottom:1px solid var(--border);">
+                    <th style="padding:8px 14px;font-size:11.5px;font-weight:600;text-align:left;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;">Type</th>
+                    <th style="padding:8px 14px;font-size:11.5px;font-weight:600;text-align:left;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;">Name</th>
+                    <th style="padding:8px 14px;font-size:11.5px;font-weight:600;text-align:left;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;">Status</th>
+                    <th style="padding:8px 14px;font-size:11.5px;font-weight:600;text-align:right;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;">Drilled</th>
+                    <th style="padding:8px 14px;font-size:11.5px;font-weight:600;text-align:right;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;">Target</th>
+                    <th style="padding:8px 14px;font-size:11.5px;font-weight:600;text-align:right;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;">Azimuth °</th>
+                    <th style="padding:8px 14px;font-size:11.5px;font-weight:600;text-align:right;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;">Dip °</th>
+                    <th style="padding:8px 14px;width:40px;"></th>
+                  </tr>
+                </thead>
+                <tbody id="drill-holes-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div><!-- /drill-detail-state -->
+
+      </div><!-- /view-drill -->
+
+      <!-- ── USERS (admin only) ── -->
+      <div class="view" id="view-users">
+        <div class="section-hdr">
+          <div>
+            <div class="section-title">User Management</div>
+            <div class="section-sub">Manage access and roles</div>
+          </div>
+          <button class="btn btn-primary btn-sm" id="user-add-btn">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add User
+          </button>
+        </div>
+
+        <!-- Add user form -->
+        <div id="user-add-form" style="display:none;" class="card mb-4">
+          <div class="card-header"><div class="card-title">New User</div></div>
+          <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;padding:16px;">
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Username *</label>
+              <input type="text" id="new-username" placeholder="e.g. jane.smith" autocomplete="off">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Display Name</label>
+              <input type="text" id="new-displayname" placeholder="Jane Smith" autocomplete="off">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Password *</label>
+              <input type="password" id="new-password" placeholder="••••••••••" autocomplete="new-password">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Role</label>
+              <select id="new-role"><option value="user">User</option><option value="admin">Admin</option></select>
+            </div>
+          </div>
+          <div style="padding:0 16px 16px;display:flex;gap:8px;">
+            <button class="btn btn-primary btn-sm" id="user-create-btn">Create User</button>
+            <button class="btn btn-secondary btn-sm" id="user-cancel-btn">Cancel</button>
+          </div>
+          <div style="padding:0 16px 12px;font-size:12px;color:var(--text-3);">
+            Password: min 10 chars · uppercase · lowercase · digit · special character
+          </div>
+        </div>
+
+        <!-- Users table -->
+        <div class="projects-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Username</th>
+                <th>Display Name</th>
+                <th>Role</th>
+                <th>Last Login</th>
+                <th>Created</th>
+                <th style="width:120px;"></th>
+              </tr>
+            </thead>
+            <tbody id="users-tbody">
+              <tr><td colspan="6" class="loading-cell"><div style="display:flex;align-items:center;justify-content:center;gap:8px;"><div class="spinner"></div>Loading…</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div><!-- /view-users -->
+
     </div><!-- /content -->
 
     <!-- MAP (outside scrollable content) -->
@@ -563,7 +807,7 @@
           <option value="external">External</option>
           <option value="unclassified">Unclassified</option>
         </select>
-        <button class="btn btn-secondary btn-sm" onclick="App.fitMapBounds()">
+        <button class="btn btn-secondary btn-sm" id="fit-bounds-btn">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
           Fit All
         </button>
@@ -607,10 +851,10 @@
         <!-- Bounding-box scale picker (shown after project selected) -->
         <div id="flora-bbox-picker" style="display:none;align-items:center;gap:6px;margin-left:8px;">
           <span style="font-size:11px;color:var(--text-3);">Area:</span>
-          <button class="btn btn-secondary btn-sm" onclick="App.floraBboxScale(1)">1×</button>
-          <button class="btn btn-secondary btn-sm" onclick="App.floraBboxScale(2)">2×</button>
-          <button class="btn btn-secondary btn-sm" onclick="App.floraBboxScale(3)">3×</button>
-          <button class="btn btn-ghost btn-sm" onclick="App.floraClearProject()" style="color:var(--text-3);font-size:11px;">✕ clear</button>
+          <button class="btn btn-secondary btn-sm" id="flora-scale-1">1×</button>
+          <button class="btn btn-secondary btn-sm" id="flora-scale-2">2×</button>
+          <button class="btn btn-secondary btn-sm" id="flora-scale-3">3×</button>
+          <button class="btn btn-ghost btn-sm" id="flora-clear-btn" style="color:var(--text-3);font-size:11px;">✕ clear</button>
         </div>
 
         <label class="btn btn-secondary btn-sm" style="cursor:pointer;margin-left:8px;" for="flora-kml-input">
@@ -647,11 +891,11 @@
               <div style="font-size:11.5px;color:var(--text-3);margin-top:2px;" id="flora-chart-stats"></div>
             </div>
             <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;margin-left:12px;">
-              <button class="btn btn-secondary btn-sm" id="flora-csv-btn" style="display:none;" onclick="App.floraExportCSV()">
+              <button class="btn btn-secondary btn-sm" id="flora-csv-btn" style="display:none;">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 CSV
               </button>
-              <button class="btn btn-ghost btn-sm" onclick="App.floraHideChart()" style="font-size:16px;line-height:1;padding:2px 7px;">×</button>
+              <button class="btn btn-ghost btn-sm" id="flora-hide-chart-btn" style="font-size:16px;line-height:1;padding:2px 7px;">×</button>
             </div>
           </div>
           <div id="flora-chart-loading" style="display:flex;align-items:center;gap:10px;padding:24px 0;justify-content:center;color:var(--text-3);font-size:13px;">
@@ -673,7 +917,7 @@
   <div class="modal">
     <div class="modal-header">
       <div class="modal-title" id="modal-title">Project Details</div>
-      <button class="modal-close" onclick="App.closeModal()">
+      <button class="modal-close" id="modal-close-btn">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
@@ -682,9 +926,9 @@
       <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:16px;">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);margin-bottom:10px;">Set Classification</div>
         <div class="cls-toggle" style="margin-bottom:12px;" id="modal-cls-toggle">
-          <button class="cls-btn" id="mcls-internal" onclick="App.setPendingCls('internal')">Internal</button>
-          <button class="cls-btn" id="mcls-external" onclick="App.setPendingCls('external')">External</button>
-          <button class="cls-btn" id="mcls-unclassified" onclick="App.setPendingCls('unclassified')">Clear</button>
+          <button class="cls-btn" id="mcls-internal">Internal</button>
+          <button class="cls-btn" id="mcls-external">External</button>
+          <button class="cls-btn" id="mcls-unclassified">Clear</button>
         </div>
         <div class="form-group">
           <label class="form-label">Note (optional)</label>
@@ -693,8 +937,8 @@
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="App.saveClassification()">Save</button>
+      <button class="btn btn-secondary" id="modal-cancel-btn">Cancel</button>
+      <button class="btn btn-primary" id="modal-save-btn">Save</button>
     </div>
   </div>
 </div>
@@ -704,13 +948,96 @@
   <div class="modal" style="width:580px;">
     <div class="modal-header">
       <div class="modal-title" id="tmodal-title">Tenement Details</div>
-      <button class="modal-close" onclick="App.closeTenementModal()">
+      <button class="modal-close" id="tmodal-close-btn">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
     <div class="modal-body" id="tmodal-body"></div>
     <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="App.closeTenementModal()">Close</button>
+      <button class="btn btn-secondary" id="tmodal-close-btn2">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── CHANGE PASSWORD MODAL ── -->
+<div class="modal-overlay" id="cpmodal" style="display:none;">
+  <div class="modal" style="width:400px;">
+    <div class="modal-header">
+      <div class="modal-title">Change Password</div>
+      <button class="modal-close" id="cpmodal-close-btn">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div id="cpmodal-msg" style="display:none;border-radius:7px;padding:10px 13px;font-size:13px;margin-bottom:14px;"></div>
+      <div class="form-group">
+        <label class="form-label">Current Password</label>
+        <input type="password" id="cp-current" autocomplete="current-password" placeholder="••••••••••">
+      </div>
+      <div class="form-group">
+        <label class="form-label">New Password</label>
+        <input type="password" id="cp-new" autocomplete="new-password" placeholder="••••••••••">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Confirm New Password</label>
+        <input type="password" id="cp-confirm" autocomplete="new-password" placeholder="••••••••••">
+      </div>
+      <div style="font-size:11.5px;color:var(--text-3);line-height:1.6;">
+        Min 10 chars · uppercase · lowercase · digit · special character
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="cpmodal-cancel-btn">Cancel</button>
+      <button class="btn btn-primary" id="cp-save-btn">Update Password</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── DRILL HOLE MODAL ── -->
+<div class="modal-overlay" id="hmodal" style="display:none;">
+  <div class="modal" style="width:460px;">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="hmodal-title"></div>
+        <div style="font-size:12px;color:var(--text-3);margin-top:2px;" id="hmodal-sub"></div>
+      </div>
+      <button class="modal-close" id="hmodal-close-btn">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="hmodal-prog-id">
+      <input type="hidden" id="hmodal-hole-name">
+      <div class="form-group">
+        <label class="form-label">Status</label>
+        <input type="hidden" id="hmodal-status" value="Planned">
+        <div id="hmodal-status-btns" style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button type="button" data-status="Planned"  style="flex:1;padding:8px 12px;border-radius:7px;border:2px solid transparent;cursor:pointer;font-size:12.5px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s;">
+            <span style="width:8px;height:8px;border-radius:50%;background:#6b7280;display:inline-block;"></span>Planned
+          </button>
+          <button type="button" data-status="Active"   style="flex:1;padding:8px 12px;border-radius:7px;border:2px solid transparent;cursor:pointer;font-size:12.5px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s;">
+            <span style="width:8px;height:8px;border-radius:50%;background:#3b82f6;display:inline-block;"></span>Active
+          </button>
+          <button type="button" data-status="Complete" style="flex:1;padding:8px 12px;border-radius:7px;border:2px solid transparent;cursor:pointer;font-size:12.5px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s;">
+            <span style="width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;"></span>Complete
+          </button>
+          <button type="button" data-status="On Hold"  style="flex:1;padding:8px 12px;border-radius:7px;border:2px solid transparent;cursor:pointer;font-size:12.5px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s;">
+            <span style="width:8px;height:8px;border-radius:50%;background:#f97316;display:inline-block;"></span>On Hold
+          </button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Metres Drilled <span style="color:var(--text-3);font-weight:400;" id="hmodal-target-label"></span></label>
+        <input type="number" id="hmodal-metres" min="0" step="0.5" placeholder="0">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes / Results</label>
+        <textarea id="hmodal-notes" rows="5" placeholder="Add notes, results, observations…"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="hmodal-cancel-btn">Cancel</button>
+      <button class="btn btn-primary" id="hmodal-save-btn">Save</button>
     </div>
   </div>
 </div>
@@ -720,6 +1047,7 @@
 <script src="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tmcw/togeojson@5.8.1/dist/togeojson.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/proj4@2.9.0/dist/proj4.min.js"></script>
 <script src="/js/app.js"></script>
 </body>
 </html>

@@ -28,8 +28,10 @@ router.get('/', async (req, res) => {
       filter.kmlName = { $in: matches.map(m => m.oreBodyId) };
     }
     if (search) {
-      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').slice(0, 200);
+      // Truncate BEFORE escaping to avoid splitting an escape sequence
+      const escaped = String(search).slice(0, 100).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       filter.$or = [
+        { projectName:              { $regex: escaped, $options: 'i' } },
         { kmlName:                  { $regex: escaped, $options: 'i' } },
         { sourceFile:               { $regex: escaped, $options: 'i' } },
         { 'tenements.tenementId':   { $regex: escaped, $options: 'i' } },

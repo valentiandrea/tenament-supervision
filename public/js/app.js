@@ -22,7 +22,7 @@ const App = (() => {
 
   // ─── Navigation ──────────────────────────────────────────
   function navigate(view) {
-    const titles = { dashboard: 'Dashboard', upload: 'Upload KML', projects: 'Projects', map: 'Map View', batches: 'Batches', changes: 'Change Monitoring', intelligence: 'Expiration', prices: 'Price Intelligence' };
+    const titles = { dashboard: 'Dashboard', upload: 'Upload KML', projects: 'Projects', map: 'Map View', batches: 'Batches', changes: 'Change Monitoring', intelligence: 'Expiration', prices: 'Price Intelligence', flora: 'Flora & Fauna' };
 
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -35,15 +35,24 @@ const App = (() => {
     document.getElementById('view-title').textContent = titles[view] || view;
     state.view = view;
 
-    const content = document.getElementById('content-area');
-    const mapView = document.getElementById('view-map');
+    const content   = document.getElementById('content-area');
+    const mapView   = document.getElementById('view-map');
+    const floraView = document.getElementById('view-flora');
+
     if (view === 'map') {
       content.style.display = 'none';
       mapView.classList.add('active');
+      floraView.classList.remove('active');
       initMap();
+    } else if (view === 'flora') {
+      content.style.display = 'none';
+      floraView.classList.add('active');
+      mapView.classList.remove('active');
+      _floraInit();
     } else {
       content.style.display = '';
       mapView.classList.remove('active');
+      floraView.classList.remove('active');
     }
 
     if (view === 'dashboard') loadDashboard();
@@ -1766,6 +1775,214 @@ const App = (() => {
     return `${sym}${v.toFixed(4)}`;
   }
 
+  // ─── Flora & Fauna ─────────────────────────────────────────
+  const floraState = { map: null, drawLayer: null, ndviLayer: null, chart: null, data: null, drawing: false };
+
+  // Initialise the Leaflet map and draw controls once; subsequent calls are no-ops.
+  function _floraInit() {
+    if (floraState.map) {
+      // Already initialised — just invalidate size in case the container was resized
+      floraState.map.invalidateSize();
+      return;
+    }
+
+    floraState.map = L.map('flora-map', { center: [-25, 122], zoom: 5 });
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors', maxZoom: 19
+    }).addTo(floraState.map);
+
+    // Leaflet.draw setup
+    floraState.drawLayer = new L.FeatureGroup().addTo(floraState.map);
+    const drawCtrl = new L.Control.Draw({
+      draw: {
+        polygon:      { shapeOptions: { color: '#01582f', weight: 2, fillOpacity: 0.08 } },
+        rectangle:    { shapeOptions: { color: '#01582f', weight: 2, fillOpacity: 0.08 } },
+        circle:       false, marker: false, polyline: false, circlemarker: false
+      },
+      edit: { featureGroup: floraState.drawLayer, remove: false }
+    });
+    floraState.map.addControl(drawCtrl);
+
+    floraState.map.on('draw:drawstart', () => { floraState.drawing = true; });
+    floraState.map.on('draw:drawstop',  () => { floraState.drawing = false; });
+    floraState.map.on('draw:created',   e  => {
+      floraState.drawLayer.clearLayers();
+      floraState.drawLayer.addLayer(e.layer);
+      const geom = e.layer.toGeoJSON().geometry;
+      _floraQueryPolygon(geom);
+      _floraLoadClippedNDVI(geom);
+    });
+
+    // Click → point query (not during drawing)
+    floraState.map.on('click', e => {
+      if (floraState.drawing) return;
+      _floraQueryPoint(e.latlng.lng, e.latlng.lat);
+    });
+
+    // NDVI layer loads on demand (when polygon drawn or point clicked)
+  }
+
+  function _floraLoadClippedNDVI(geometry) {
+    fetch('/api/flora/map', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ geometry })
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (!d.success) return;
+        if (floraState.ndviLayer) floraState.map.removeLayer(floraState.ndviLayer);
+        floraState.ndviLayer = L.tileLayer(d.data.tileUrl, {
+          opacity: 0.85,
+          attribution: ''
+        }).addTo(floraState.map);
+        document.getElementById('flora-legend').style.display = 'block';
+      })
+      .catch(() => { /* clipped NDVI unavailable */ });
+  }
+
+  function _floraShowLoading(title) {
+    document.getElementById('flora-chart-title').textContent = title;
+    document.getElementById('flora-chart-stats').textContent = '';
+    document.getElementById('flora-chart-loading').style.display = 'flex';
+    document.getElementById('flora-chart-loading').innerHTML =
+      '<div class="spinner"></div> Querying satellite data… this may take 15–30 s';
+    document.getElementById('flora-chart-wrap').style.display  = 'none';
+    document.getElementById('flora-csv-btn').style.display     = 'none';
+    document.getElementById('flora-chart-panel').style.display = 'block';
+    if (floraState.chart) { floraState.chart.destroy(); floraState.chart = null; }
+    floraState.data = null;
+  }
+
+  function floraHideChart() {
+    document.getElementById('flora-chart-panel').style.display = 'none';
+    if (floraState.chart) { floraState.chart.destroy(); floraState.chart = null; }
+    floraState.data = null;
+  }
+
+  async function _floraQueryPoint(lon, lat) {
+    _floraShowLoading(`NDVI at (${lat.toFixed(5)}, ${lon.toFixed(5)})`);
+    try {
+      const res  = await fetch('/api/flora/point', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lon, lat })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      floraState.data = data.data;
+      _floraRenderChart(data.data);
+    } catch (e) {
+      document.getElementById('flora-chart-loading').innerHTML =
+        `<span style="color:var(--red)">Error: ${esc(e.message)}</span>`;
+    }
+  }
+
+  async function _floraQueryPolygon(geojson) {
+    _floraShowLoading('NDVI Mean ± Std Dev — drawn area');
+    try {
+      const res  = await fetch('/api/flora/polygon', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ geometry: geojson })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      floraState.data = data.data;
+      _floraRenderChart(data.data);
+    } catch (e) {
+      document.getElementById('flora-chart-loading').innerHTML =
+        `<span style="color:var(--red)">Error: ${esc(e.message)}</span>`;
+    }
+  }
+
+  function _floraRenderChart(rows) {
+    document.getElementById('flora-chart-loading').style.display = 'none';
+    document.getElementById('flora-chart-wrap').style.display    = 'block';
+    document.getElementById('flora-csv-btn').style.display       = '';
+
+    const labels = rows.map(r => r.date);
+    const means  = rows.map(r => r.mean);
+    const upper  = rows.map(r => r.stdDev != null ? +((r.mean + r.stdDev).toFixed(4)) : r.mean);
+    const lower  = rows.map(r => r.stdDev != null ? +((r.mean - r.stdDev).toFixed(4)) : r.mean);
+
+    const validMeans   = means.filter(v => v != null);
+    const overallMean  = validMeans.reduce((s, v) => s + v, 0) / validMeans.length;
+    const stdTime      = Math.sqrt(validMeans.reduce((s, v) => s + (v - overallMean) ** 2, 0) / validMeans.length);
+    document.getElementById('flora-chart-stats').textContent =
+      `Mean NDVI: ${overallMean.toFixed(4)} · Std Dev (time): ${stdTime.toFixed(4)} · ${rows.length} observations`;
+
+    const ctx = document.getElementById('flora-chart').getContext('2d');
+    floraState.chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Mean NDVI', data: means, borderColor: '#01582f', borderWidth: 1.5, pointRadius: 0, tension: 0, fill: false },
+          { label: '+1 Std Dev', data: upper, borderColor: '#44b365', borderWidth: 1, borderDash: [4, 3], pointRadius: 0, tension: 0, fill: false },
+          { label: '−1 Std Dev', data: lower, borderColor: '#44b365', borderWidth: 1, borderDash: [4, 3], pointRadius: 0, tension: 0, fill: false }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: true, labels: { boxWidth: 12, font: { size: 10 } } }
+        },
+        scales: {
+          x: { ticks: { maxTicksLimit: 12, font: { size: 9 }, color: '#6b7280' }, grid: { color: 'rgba(0,0,0,0.04)' } },
+          y: { min: 0, max: 1, ticks: { font: { size: 10 }, color: '#6b7280', callback: v => v.toFixed(2) }, grid: { color: 'rgba(0,0,0,0.06)' } }
+        }
+      }
+    });
+  }
+
+  function floraExportCSV() {
+    if (!floraState.data) return;
+    const lines = ['Date,Mean NDVI,+1 Std Dev,-1 Std Dev'];
+    for (const r of floraState.data) {
+      const u = r.stdDev != null ? (r.mean + r.stdDev).toFixed(4) : r.mean.toFixed(4);
+      const l = r.stdDev != null ? (r.mean - r.stdDev).toFixed(4) : r.mean.toFixed(4);
+      lines.push(`${r.date},${r.mean.toFixed(4)},${u},${l}`);
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const a    = Object.assign(document.createElement('a'), {
+      href: URL.createObjectURL(blob), download: 'ndvi_timeseries.csv'
+    });
+    a.click();
+  }
+
+  function floraUploadKML(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const dom  = new DOMParser().parseFromString(e.target.result, 'text/xml');
+        const fc   = toGeoJSON.kml(dom);
+        const feat = fc.features.find(f => f.geometry &&
+          (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'));
+        if (!feat) { showToast('No polygon found in KML', 'error'); return; }
+
+        // Strip altitude (3rd coordinate) recursively
+        const geom = JSON.parse(JSON.stringify(feat.geometry));
+        function stripAlt(c) {
+          return typeof c[0] === 'number' ? c.slice(0, 2) : c.map(stripAlt);
+        }
+        geom.coordinates = stripAlt(geom.coordinates);
+
+        floraState.drawLayer.clearLayers();
+        const layer = L.geoJSON(geom, { style: { color: '#01582f', weight: 2, fillOpacity: 0.08 } });
+        layer.addTo(floraState.drawLayer);
+        floraState.map.fitBounds(layer.getBounds());
+
+        _floraQueryPolygon(geom);
+      } catch (err) {
+        showToast('KML parse error: ' + err.message, 'error');
+      }
+      input.value = '';
+    };
+    reader.readAsText(file);
+  }
+
   // ─── Init ─────────────────────────────────────────────────
   function init() {
     document.querySelectorAll('.nav-item[data-view]').forEach(el =>
@@ -1799,6 +2016,7 @@ const App = (() => {
     loadSessions, selectSession, filterChanges, startRecheck, deleteSession,
     applyIntelFilters, goIntelPage,
     loadPriceSymbols, loadPriceData, setPriceRange,
+    floraHideChart, floraExportCSV, floraUploadKML,
     showToast, init
   };
 })();

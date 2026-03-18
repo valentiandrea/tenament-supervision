@@ -18,8 +18,8 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       scriptSrc:  ["'self'", "https://unpkg.com", "https://cdn.jsdelivr.net"],
       styleSrc:   ["'self'", "'unsafe-inline'", "https://unpkg.com", "https://cdn.jsdelivr.net"],
-      imgSrc:     ["'self'", "data:", "https://*.tile.openstreetmap.org"],
-      connectSrc: ["'self'"],
+      imgSrc:     ["'self'", "data:", "https://*.tile.openstreetmap.org", "https://earthengine.googleapis.com", "https://cdn.jsdelivr.net", "https://unpkg.com"],
+      connectSrc: ["'self'", "https://earthengine.googleapis.com"],
       fontSrc:    ["'self'"],
       objectSrc:      ["'none'"],
       frameAncestors: ["'none'"],
@@ -98,6 +98,7 @@ app.use('/api/changes',  require('./routes/api/changes'));
 app.use('/api/metadata', require('./routes/api/metadata'));
 app.use('/api/intelligence', require('./routes/api/intelligence'));
 app.use('/api/prices',      require('./routes/api/prices'));
+app.use('/api/flora',       require('./routes/api/flora'));
 
 // ── SPA catch-all ─────────────────────────────────────────────
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));

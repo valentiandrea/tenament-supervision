@@ -1776,7 +1776,11 @@ const App = (() => {
   }
 
   // ─── Flora & Fauna ─────────────────────────────────────────
-  const floraState = { map: null, drawLayer: null, ndviLayer: null, chart: null, data: null, drawing: false };
+  const floraState = {
+    map: null, drawLayer: null, ndviLayer: null, kmlLayer: null, bboxLayer: null,
+    chart: null, data: null, drawing: false,
+    selectedProject: null, _searchTimer: null
+  };
 
   // Initialise the Leaflet map and draw controls once; subsequent calls are no-ops.
   function _floraInit() {
@@ -1821,6 +1825,13 @@ const App = (() => {
     });
 
     // NDVI layer loads on demand (when polygon drawn or point clicked)
+
+    // Close project dropdown when clicking outside
+    document.addEventListener('click', e => {
+      if (!e.target.closest('#flora-project-input') && !e.target.closest('#flora-project-dropdown')) {
+        document.getElementById('flora-project-dropdown').style.display = 'none';
+      }
+    });
   }
 
   function _floraLoadClippedNDVI(geometry) {
@@ -1839,6 +1850,123 @@ const App = (() => {
         document.getElementById('flora-legend').style.display = 'block';
       })
       .catch(() => { /* clipped NDVI unavailable */ });
+  }
+
+  // ── Project selector helpers ────────────────────────────────────────────────
+
+  /** Compute a GeoJSON Polygon bbox scaled `scale` times around the project polygon. */
+  function _floraBboxGeom(polygon, scale) {
+    // polygon is [[lon, lat], ...]
+    const lons = polygon.map(p => p[0]);
+    const lats = polygon.map(p => p[1]);
+    const minLon = Math.min(...lons), maxLon = Math.max(...lons);
+    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+    const cLon = (minLon + maxLon) / 2, cLat = (minLat + maxLat) / 2;
+    const hw = (maxLon - minLon) / 2 * scale;
+    const hh = (maxLat - minLat) / 2 * scale;
+    const w = cLon - hw, e = cLon + hw, s = cLat - hh, n = cLat + hh;
+    return {
+      type: 'Polygon',
+      coordinates: [[[w,s],[e,s],[e,n],[w,n],[w,s]]]
+    };
+  }
+
+  /** Debounced project search — populates the dropdown. Empty query loads all. */
+  function floraProjectSearch(query) {
+    clearTimeout(floraState._searchTimer);
+    const delay = (query && query.trim().length > 0) ? 250 : 0;
+    floraState._searchTimer = setTimeout(async () => {
+      const dd = document.getElementById('flora-project-dropdown');
+      try {
+        const q    = query && query.trim().length > 0 ? `&search=${encodeURIComponent(query.trim())}` : '';
+        const r    = await fetch(`/api/projects?limit=50${q}`);
+        const d    = await r.json();
+        if (!d.success || !d.data.length) { dd.innerHTML = '<div style="padding:10px 12px;font-size:12px;color:var(--text-3);">No projects found</div>'; dd.style.display = 'block'; return; }
+        dd.innerHTML = d.data.map(p => {
+          const name = esc(p.projectName || p.kmlName);
+          const kml  = esc(p.kmlName);
+          const id   = esc(p._id);
+          return `<div data-id="${id}" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:12px;"
+                    onmousedown="App.floraSelectProject('${id}')"
+                    onmouseover="this.style.background='#f3f4f6'"
+                    onmouseout="this.style.background='#fff'">
+                    <div style="font-weight:600;color:var(--text-1);">${name}</div>
+                    <div style="color:var(--text-3);font-size:11px;">${kml}</div>
+                  </div>`;
+        }).join('');
+        dd.style.display = 'block';
+      } catch { dd.style.display = 'none'; }
+    }, delay);
+  }
+
+  /** Called when user picks a project from dropdown. */
+  async function floraSelectProject(id) {
+    const dd = document.getElementById('flora-project-dropdown');
+    dd.style.display = 'none';
+    try {
+      const r = await fetch(`/api/projects/${encodeURIComponent(id)}`);
+      const d = await r.json();
+      if (!d.success) return;
+      const project = d.data;
+      floraState.selectedProject = project;
+      const label = project.projectName || project.kmlName;
+      document.getElementById('flora-project-input').value = label;
+      document.getElementById('flora-bbox-picker').style.display = 'flex';
+      document.getElementById('flora-hint').style.display = 'none';
+      // Default to 1× immediately
+      _floraLoadProject(project, 1);
+    } catch { /* ignore */ }
+  }
+
+  /** Called by 1×/2×/3× buttons. */
+  function floraBboxScale(scale) {
+    if (!floraState.selectedProject) return;
+    _floraLoadProject(floraState.selectedProject, scale);
+  }
+
+  /** Clear selected project and reset to manual draw mode. */
+  function floraClearProject() {
+    floraState.selectedProject = null;
+    document.getElementById('flora-project-input').value = '';
+    document.getElementById('flora-bbox-picker').style.display = 'none';
+    document.getElementById('flora-hint').style.display = '';
+    if (floraState.kmlLayer)  { floraState.map.removeLayer(floraState.kmlLayer);  floraState.kmlLayer  = null; }
+    if (floraState.bboxLayer) { floraState.map.removeLayer(floraState.bboxLayer); floraState.bboxLayer = null; }
+    if (floraState.ndviLayer) { floraState.map.removeLayer(floraState.ndviLayer); floraState.ndviLayer = null; }
+    floraHideChart();
+    document.getElementById('flora-legend').style.display = 'none';
+  }
+
+  /** Draw KML polygon + scaled bbox, load NDVI tiles + time series. */
+  function _floraLoadProject(project, scale) {
+    if (!floraState.map) return;
+    const polygon = project.polygon; // [[lon, lat], ...]
+    if (!polygon || polygon.length < 3) return;
+
+    // Remove previous project layers
+    if (floraState.kmlLayer)  { floraState.map.removeLayer(floraState.kmlLayer);  floraState.kmlLayer  = null; }
+    if (floraState.bboxLayer) { floraState.map.removeLayer(floraState.bboxLayer); floraState.bboxLayer = null; }
+    if (floraState.drawLayer) floraState.drawLayer.clearLayers();
+
+    // Draw original KML polygon (green solid outline)
+    const leafletPoly = polygon.map(([lon, lat]) => [lat, lon]);
+    floraState.kmlLayer = L.polygon(leafletPoly, {
+      color: '#01582f', weight: 2, fillColor: '#01582f', fillOpacity: 0.12, dashArray: null
+    }).addTo(floraState.map);
+
+    // Compute scaled bounding box
+    const bboxGeom = _floraBboxGeom(polygon, scale);
+    const [[w,s],[e,_s],[_e,n]] = bboxGeom.coordinates[0];
+    floraState.bboxLayer = L.rectangle([[s, w],[n, e]], {
+      color: '#2563eb', weight: 2, fill: false, dashArray: '6 4'
+    }).addTo(floraState.map);
+
+    // Fit map to bbox
+    floraState.map.fitBounds([[s, w],[n, e]], { padding: [30, 30] });
+
+    // Query NDVI for bbox
+    _floraLoadClippedNDVI(bboxGeom);
+    _floraQueryPolygon(bboxGeom);
   }
 
   function _floraShowLoading(title) {
@@ -2017,6 +2145,7 @@ const App = (() => {
     applyIntelFilters, goIntelPage,
     loadPriceSymbols, loadPriceData, setPriceRange,
     floraHideChart, floraExportCSV, floraUploadKML,
+    floraProjectSearch, floraSelectProject, floraBboxScale, floraClearProject,
     showToast, init
   };
 })();

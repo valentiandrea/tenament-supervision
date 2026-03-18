@@ -588,12 +588,37 @@
     <div class="view map-view" id="view-flora">
       <div class="map-toolbar">
         <span style="font-size:12px;font-weight:600;color:var(--text-2);">NDVI · Vegetation Health Index</span>
+
+        <!-- Project search -->
+        <div style="position:relative;margin-left:10px;">
+          <input id="flora-project-input" type="text" autocomplete="off"
+            placeholder="Select project…"
+            style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;
+                   width:200px;background:var(--bg-2);color:var(--text-1);outline:none;"
+            oninput="App.floraProjectSearch(this.value)"
+            onfocus="App.floraProjectSearch(this.value)" />
+          <div id="flora-project-dropdown"
+            style="display:none;position:absolute;top:calc(100% + 4px);left:0;width:260px;
+                   background:#fff;border:1px solid var(--border);border-radius:8px;
+                   box-shadow:0 4px 18px rgba(0,0,0,0.15);z-index:2000;max-height:240px;overflow-y:auto;">
+          </div>
+        </div>
+
+        <!-- Bounding-box scale picker (shown after project selected) -->
+        <div id="flora-bbox-picker" style="display:none;align-items:center;gap:6px;margin-left:8px;">
+          <span style="font-size:11px;color:var(--text-3);">Area:</span>
+          <button class="btn btn-secondary btn-sm" onclick="App.floraBboxScale(1)">1×</button>
+          <button class="btn btn-secondary btn-sm" onclick="App.floraBboxScale(2)">2×</button>
+          <button class="btn btn-secondary btn-sm" onclick="App.floraBboxScale(3)">3×</button>
+          <button class="btn btn-ghost btn-sm" onclick="App.floraClearProject()" style="color:var(--text-3);font-size:11px;">✕ clear</button>
+        </div>
+
         <label class="btn btn-secondary btn-sm" style="cursor:pointer;margin-left:8px;" for="flora-kml-input">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           Upload KML
         </label>
         <input type="file" id="flora-kml-input" accept=".kml" style="display:none;" onchange="App.floraUploadKML(this)" />
-        <span style="font-size:12px;color:var(--text-3);margin-left:auto;">Click map for point · Draw polygon for area analysis</span>
+        <span id="flora-hint" style="font-size:12px;color:var(--text-3);margin-left:auto;">Click map for point · Draw polygon for area analysis</span>
       </div>
 
       <div id="flora-map-container" style="position:relative;flex:1;overflow:hidden;">
